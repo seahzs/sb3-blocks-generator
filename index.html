@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+    <head>
+        <meta charset="utf-8" />
+        <script src="https://unpkg.com/scratchblocks@3.6.1/build/scratchblocks.min.js" defer></script>
+        <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.11/clipboard.min.js" defer></script>
+        <script src='https://cdn.jsdelivr.net/npm/parse-sb3-blocks@0.5.0/dist/parse-sb3-blocks.browser.js' defer></script>
+        <script src="index.js" defer></script>
+        <title>SB3 to ScratchBlocks Generator</title>
+    </head>
+    <body>
+        <h3>Generate Scratchblocks Text/Blocks from Scratch 3.0 Project SB3 File</h3>
+        <div>
+            <label>① SB3 File:&thinsp;</label>
+            <input type="file" id="sb3Upload" name="sb3Upload" accept=".sb3">
+        </div>
+        <br />
+        <div id="spriteForm" hidden>
+            <label>② Select Stage/Sprite:&thinsp;</label>
+            <select id="spriteList">
+                <option value="_stage_">Stage</option>
+            </select>
+            <label id="errorMsg" style="color:red;" hidden></label>
+        </div>
+        <div id="textContainer" hidden>
+            <hr />
+            <label>③</label>
+            <button data-clipboard-target="#textAreaInner" id="copyText" >Copy Text</button>
+            <label>&thinsp;or&thinsp;</label>
+            <button id="downloadText">Download TXT File</button>
+            <div id="textArea">
+                <pre id="textAreaInner"></pre>
+            </div>
+        </div>
+        <div id="blocksContainer" hidden>
+            <hr/>
+            <form>
+                <label>④ Block Size:</label>
+                <select id="blockSize">
+                    <option value="0.67">67%</option>
+                    <option value="0.75">75%</option>
+                    <option value="0.8" selected>80%</option>
+                    <option value="0.9">90%</option>
+                    <option value="1">100%</option>
+                    <option value="1.1">110%</option>
+                    <option value="1.25">125%</option>
+                </select>
+                <label style="color:red; font-style:italic;">&emsp;(If PNG image doesn't appear, click on 'generate' button.)</label>
+            </form>
+            <br/>
+            <div style="float:left">
+                <label>SVG Image:&thinsp;</label>
+                <button id="downloadSvg">Download SVG File</button>
+                <label>&emsp;</label>
+                <br/>
+                <img id="svgImage"/>
+            </div>
+            <div style="float:left">
+                <label>PNG Image:&thinsp;</label>
+                <button id="generatePng">Generate</button>
+                <button id="downloadPng">Download PNG File</button>
+                <br/>
+                <canvas id="imageCanvas"/>
+            </div>
+        </div>
+    </body>
+</html>
