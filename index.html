@@ -1,68 +1,134 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="utf-8" />
-        <script src="https://cdn.jsdelivr.net/npm/scratchblocks@3.6.1/build/scratchblocks.min.js" defer></script>
-        <script src='https://cdn.jsdelivr.net/npm/parse-sb3-blocks@0.5.2/dist/parse-sb3-blocks.browser.min.js' defer></script>
-        <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
-        <script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.10/dist/clipboard.min.js" defer></script>
-        <script src="index.js" defer></script>
-        <title>SB3 to ScratchBlocks Generator</title>
-    </head>
-    <body>
-        <h3>Generate Scratchblocks Text/Blocks from Scratch 3.0 Project SB3 File</h3>
-        <div>
-            <label>① SB3 File:&thinsp;</label>
-            <input type="file" id="sb3Upload" name="sb3Upload" accept=".sb3">
+  <head>
+    <meta charset="utf-8" />
+    <script
+      src="https://cdn.jsdelivr.net/npm/scratchblocks@3.6.1/build/scratchblocks.min.js"
+      defer
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/parse-sb3-blocks@0.5.2/dist/parse-sb3-blocks.browser.min.js"
+      defer
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"
+      defer
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/wheelnav@1.7.1/js/dist/raphael.min.js"
+      defer
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/clipboard@2.0.10/dist/clipboard.min.js"
+      defer
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/flowchart/1.18.0/flowchart.min.js"
+      defer
+    ></script>
+    <script src="index.js" defer></script>
+    <title>SB3 to ScratchBlocks Generator</title>
+  </head>
+
+  <body>
+    <h3>
+      Generate Scratchblocks Text/Blocks from Scratch 3.0 Project SB3 File
+    </h3>
+    <div>
+      <label>① SB3 File:&thinsp;</label>
+      <input type="file" id="sb3Upload" name="sb3Upload" accept=".sb3" />
+    </div>
+    <br />
+    <div id="spriteForm" hidden>
+      <label>② Select Stage/Sprite:&thinsp;</label>
+      <select id="spriteList">
+        <option value="_stage_">Stage</option>
+      </select>
+      <label id="errorMsg" style="color: red" hidden></label>
+    </div>
+    <div id="textContainer" hidden>
+      <hr />
+      <label>③</label>
+      <button data-clipboard-target="#textAreaInner" id="copyText">
+        Copy Text
+      </button>
+      <label>&thinsp;or&thinsp;</label>
+      <button id="downloadText">Download TXT File</button>
+      <div id="textArea">
+        <pre id="textAreaInner"></pre>
+      </div>
+    </div>
+    <div id="blocksContainer" hidden>
+      <hr />
+      <form>
+        <label>④ Block Size:</label>
+        <select id="blockSize">
+          <option value="0.67">67%</option>
+          <option value="0.75">75%</option>
+          <option value="0.8" selected>80%</option>
+          <option value="0.9">90%</option>
+          <option value="1">100%</option>
+          <option value="1.1">110%</option>
+          <option value="1.25">125%</option>
+        </select>
+        <label style="color: red; font-style: italic"
+          >&emsp;(If PNG image doesn't appear, click on 'generate'
+          button.)</label
+        >
+      </form>
+      <br />
+      <div style="display: flex; gap: 10px; width: 100%">
+        <div style="float: left">
+          <label>SVG Image:&thinsp;</label>
+          <button id="downloadSvg">Download SVG File</button>
+          <label>&emsp;</label>
+          <br />
+          <img id="svgImage" />
         </div>
-        <br />
-        <div id="spriteForm" hidden>
-            <label>② Select Stage/Sprite:&thinsp;</label>
-            <select id="spriteList">
-                <option value="_stage_">Stage</option>
-            </select>
-            <label id="errorMsg" style="color:red;" hidden></label>
+        <div style="float: left">
+          <label>PNG Image:&thinsp;</label>
+          <button id="generatePng">Generate</button>
+          <button id="downloadPng">Download PNG File</button>
+          <br />
+          <canvas id="imageCanvas"></canvas>
         </div>
-        <div id="textContainer" hidden>
-            <hr />
-            <label>③</label>
-            <button data-clipboard-target="#textAreaInner" id="copyText" >Copy Text</button>
-            <label>&thinsp;or&thinsp;</label>
-            <button id="downloadText">Download TXT File</button>
-            <div id="textArea">
-                <pre id="textAreaInner"></pre>
-            </div>
+        <!-- Flowchart Section -->
+        <div style="margin-top: 20px">
+          <h4>Simple Flowchart Example</h4>
+          <div
+            id="flowchartContainer"
+            style="width: 100%; height: 400px; border: 1px solid black"
+          ></div>
         </div>
-        <div id="blocksContainer" hidden>
-            <hr/>
-            <form>
-                <label>④ Block Size:</label>
-                <select id="blockSize">
-                    <option value="0.67">67%</option>
-                    <option value="0.75">75%</option>
-                    <option value="0.8" selected>80%</option>
-                    <option value="0.9">90%</option>
-                    <option value="1">100%</option>
-                    <option value="1.1">110%</option>
-                    <option value="1.25">125%</option>
-                </select>
-                <label style="color:red; font-style:italic;">&emsp;(If PNG image doesn't appear, click on 'generate' button.)</label>
-            </form>
-            <br/>
-            <div style="float:left">
-                <label>SVG Image:&thinsp;</label>
-                <button id="downloadSvg">Download SVG File</button>
-                <label>&emsp;</label>
-                <br/>
-                <img id="svgImage"/>
-            </div>
-            <div style="float:left">
-                <label>PNG Image:&thinsp;</label>
-                <button id="generatePng">Generate</button>
-                <button id="downloadPng">Download PNG File</button>
-                <br/>
-                <canvas id="imageCanvas"/>
-            </div>
-        </div>
-    </body>
+      </div>
+    </div>
+    <script>
+      window.onload = function () {
+        // Define a simple flowchart string
+        var diagram = `
+         st=>start: Start:>http://www.google.com[blank]
+e=>end:>http://www.google.com
+op1=>operation: My Operation
+sub1=>subroutine: My Subroutine
+cond=>condition: Yes
+or No?:>http://www.google.com
+io=>inputoutput: catch something...
+para=>parallel: parallel tasks
+in=>input: some in
+out=>output: some out
+
+st->op1->cond
+cond(yes)->io->e
+cond(no)->para
+para(path1, bottom)->sub1(right)->op1
+para(path2, top)->op1
+para(path3, right)->in->out->e
+            `;
+
+        // Render the flowchart
+        var chart = flowchart.parse(diagram);
+        chart.drawSVG("flowchartContainer");
+      };
+    </script>
+  </body>
 </html>
