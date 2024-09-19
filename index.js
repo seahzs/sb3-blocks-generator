@@ -215,6 +215,15 @@ function triggerDownload(objectURL, fileName, mimeType) {
 /* -------------------- */
 /* Flowchart Feature Code */
 /* -------------------- */
+/* -------------------- */
+/* -------------------- */
+/* -------------------- */
+/* -------------------- */
+/* -------------------- */
+/* -------------------- */
+/* -------------------- */
+/* -------------------- */
+/* -------------------- */
 
 // New function to generate and render flowcharts
 function generateAndRenderFlowcharts(hatBlocks, blocks) {
@@ -240,7 +249,14 @@ function generateFlowchartDefinition(hatKey, blocks) {
 }
 
 // Function to traverse blocks and build nodes and connections
-function traverseBlocks(blockId, blocks, nodes, connections, nodeCounter) {
+function traverseBlocks(
+  blockId,
+  blocks,
+  nodes,
+  connections,
+  nodeCounter,
+  exitTarget = null
+) {
   let block = blocks[blockId];
   if (!block) return;
 
@@ -254,60 +270,349 @@ function traverseBlocks(blockId, blocks, nodes, connections, nodeCounter) {
 
   nodes[blockId] = { id: nodeId, label: nodeLabel, type: nodeType };
 
-  // Process the next block
-  if (block.next) {
-    let nextBlockId = block.next;
-    connections.push({ from: blockId, to: nextBlockId });
-    traverseBlocks(nextBlockId, blocks, nodes, connections, nodeCounter);
-  }
-
   // Handle special blocks with inputs/substacks
   if (block.inputs) {
-    if (["control_if", "control_if_else"].includes(block.opcode)) {
-      // Condition block
-      let conditionLabel = getConditionLabel(block, blocks);
-      nodes[blockId].label += `\n(${conditionLabel})`;
-
-      // Yes branch (SUBSTACK)
+    if (block.opcode === "control_if") {
+      // If block
       let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
+
+      // 'Yes' branch (condition true)
       if (substackId) {
         connections.push({ from: blockId, to: substackId, condition: "yes" });
-        traverseBlocks(substackId, blocks, nodes, connections, nodeCounter);
+        traverseBlocks(
+          substackId,
+          blocks,
+          nodes,
+          connections,
+          nodeCounter,
+          block.next || exitTarget
+        );
+      } else {
+        // If no substack, connect 'Yes' branch directly to next block or exitTarget
+        let target = block.next || exitTarget;
+        if (target) {
+          connections.push({ from: blockId, to: target, condition: "yes" });
+        }
       }
 
-      // No branch (SUBSTACK2)
-      if (block.opcode === "control_if_else") {
+      // 'No' branch (condition false), connect to next block or exitTarget
+      let target = block.next || exitTarget;
+      if (target) {
+        connections.push({ from: blockId, to: target, condition: "no" });
+        traverseBlocks(
+          target,
+          blocks,
+          nodes,
+          connections,
+          nodeCounter,
+          exitTarget
+        );
+      }
+    } else if (block.opcode === "control_if_else") {
+      // If Else block
+      let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
+      let substack2Id = block.inputs.SUBSTACK2
+        ? block.inputs.SUBSTACK2[1]
+        : null;
+
+      // 'Yes' branch (condition true)
+      if (substackId) {
+        connections.push({ from: blockId, to: substackId, condition: "yes" });
+        traverseBlocks(
+          substackId,
+          blocks,
+          nodes,
+          connections,
+          nodeCounter,
+          block.next || exitTarget
+        );
+      } else {
+        // If no substack, connect 'Yes' branch directly to next block or exitTarget
+        let target = block.next || exitTarget;
+        if (target) {
+          connections.push({ from: blockId, to: target, condition: "yes" });
+        }
+      }
+
+      // 'No' branch (condition false)
+      if (substack2Id) {
+        connections.push({ from: blockId, to: substack2Id, condition: "no" });
+        traverseBlocks(
+          substack2Id,
+          blocks,
+          nodes,
+          connections,
+          nodeCounter,
+          block.next || exitTarget
+        );
+      } else {
+        // If no substack2, connect 'No' branch directly to next block or exitTarget
+        let target = block.next || exitTarget;
+        if (target) {
+          connections.push({ from: blockId, to: target, condition: "no" });
+        }
+      }
+
+      // No need to traverse block.next here, as it's handled via exitTarget in branches
+    } else if (
+      ["control_repeat", "control_repeat_until"].includes(block.opcode)
+    ) {
+      // Loop blocks
+      let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
+
+      // Add condition labels to loop connections
+      if (block.opcode === "control_repeat_until") {
+        // 'No' branch (continue looping)
+        if (substackId) {
+          connections.push({ from: blockId, to: substackId, condition: "no" });
+          traverseBlocks(
+            substackId,
+            blocks,
+            nodes,
+            connections,
+            nodeCounter,
+            blockId
+          );
+        } else {
+          // If no substack, loop back directly
+          connections.push({ from: blockId, to: blockId, condition: "no" });
+        }
+
+        // 'Yes' branch (exit loop)
+        let target = block.next || exitTarget;
+        if (target) {
+          connections.push({ from: blockId, to: target, condition: "yes" });
+          traverseBlocks(
+            target,
+            blocks,
+            nodes,
+            connections,
+            nodeCounter,
+            exitTarget
+          );
+        }
+      } else if (block.opcode === "control_repeat") {
+        // 'No' branch (continue looping)
+        if (substackId) {
+          connections.push({ from: blockId, to: substackId, condition: "no" });
+          traverseBlocks(
+            substackId,
+            blocks,
+            nodes,
+            connections,
+            nodeCounter,
+            blockId
+          );
+        } else {
+          // If no substack, loop back directly
+          connections.push({ from: blockId, to: blockId, condition: "no" });
+        }
+
+        // 'Yes' branch (exit loop)
+        let target = block.next || exitTarget;
+        if (target) {
+          connections.push({ from: blockId, to: target, condition: "yes" });
+          traverseBlocks(
+            target,
+            blocks,
+            nodes,
+            connections,
+            nodeCounter,
+            exitTarget
+          );
+        }
+      }
+    } else if (block.opcode === "control_forever") {
+      // Forever loop
+      let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
+      if (substackId) {
+        connections.push({ from: blockId, to: substackId, condition: "no" });
+        traverseBlocks(
+          substackId,
+          blocks,
+          nodes,
+          connections,
+          nodeCounter,
+          blockId
+        );
+      } else {
+        // If no substack, loop back directly
+        connections.push({ from: blockId, to: blockId, condition: "no" });
+      }
+
+      // No 'Yes' branch since it's an infinite loop
+    } else {
+      // Handle other blocks
+      if (block.next) {
+        connections.push({ from: blockId, to: block.next });
+        traverseBlocks(
+          block.next,
+          blocks,
+          nodes,
+          connections,
+          nodeCounter,
+          exitTarget
+        );
+      } else if (exitTarget) {
+        connections.push({ from: blockId, to: exitTarget });
+        traverseBlocks(
+          exitTarget,
+          blocks,
+          nodes,
+          connections,
+          nodeCounter,
+          null
+        );
+      }
+    }
+  } else {
+    // No inputs, proceed to the next block
+    if (block.next) {
+      connections.push({ from: blockId, to: block.next });
+      traverseBlocks(
+        block.next,
+        blocks,
+        nodes,
+        connections,
+        nodeCounter,
+        exitTarget
+      );
+    } else if (exitTarget) {
+      connections.push({ from: blockId, to: exitTarget });
+      traverseBlocks(exitTarget, blocks, nodes, connections, nodeCounter, null);
+    }
+  }
+}
+
+// Function to collect all blocks within a substack
+function collectSubstackBlocks(blockId, blocks) {
+  let substackBlocks = new Set();
+  let visited = new Set();
+
+  function dfs(currentId) {
+    if (visited.has(currentId)) return;
+    visited.add(currentId);
+
+    let block = blocks[currentId];
+    if (!block) return;
+
+    substackBlocks.add(currentId);
+
+    if (block.inputs) {
+      if (block.opcode === "control_if" || block.opcode === "control_if_else") {
+        let substackId = block.inputs.SUBSTACK
+          ? block.inputs.SUBSTACK[1]
+          : null;
         let substack2Id = block.inputs.SUBSTACK2
           ? block.inputs.SUBSTACK2[1]
           : null;
-        if (substack2Id) {
-          connections.push({
-            from: blockId,
-            to: substack2Id,
-            condition: "no",
-          });
-          traverseBlocks(substack2Id, blocks, nodes, connections, nodeCounter);
-        }
-      }
-    } else if (
-      ["control_repeat", "control_forever", "control_repeat_until"].includes(
-        block.opcode
-      )
-    ) {
-      // Loop block
-      let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
-      if (substackId) {
-        connections.push({ from: blockId, to: substackId });
-        traverseBlocks(substackId, blocks, nodes, connections, nodeCounter);
 
-        // After substack, proceed to the next block
-        let lastSubstackBlockId = getLastBlockId(substackId, blocks);
-        if (block.next) {
-          connections.push({ from: lastSubstackBlockId, to: block.next });
-        }
+        if (substackId) dfs(substackId);
+        if (substack2Id) dfs(substack2Id);
+
+        if (block.next) dfs(block.next);
+      } else if (
+        ["control_repeat", "control_repeat_until", "control_forever"].includes(
+          block.opcode
+        )
+      ) {
+        let substackId = block.inputs.SUBSTACK
+          ? block.inputs.SUBSTACK[1]
+          : null;
+
+        if (substackId) dfs(substackId);
+
+        if (block.next) dfs(block.next);
+      } else {
+        if (block.next) dfs(block.next);
       }
+    } else {
+      if (block.next) dfs(block.next);
     }
   }
+
+  dfs(blockId);
+  return substackBlocks;
+}
+
+function getLastBlockIds(blockId, blocks, substackBlocks = null) {
+  let endpoints = [];
+  let visited = {};
+
+  function dfs(currentId) {
+    if (visited[currentId]) return;
+    visited[currentId] = true;
+
+    let block = blocks[currentId];
+    if (!block) return;
+
+    if (substackBlocks && !substackBlocks.has(currentId)) {
+      // We have exited the substack
+      return;
+    }
+
+    let hasNext = false;
+
+    if (block.inputs) {
+      if (block.opcode === "control_if" || block.opcode === "control_if_else") {
+        let substackId = block.inputs.SUBSTACK
+          ? block.inputs.SUBSTACK[1]
+          : null;
+        let substack2Id = block.inputs.SUBSTACK2
+          ? block.inputs.SUBSTACK2[1]
+          : null;
+
+        if (substackId) dfs(substackId);
+        if (substack2Id) dfs(substack2Id);
+
+        if (block.next && (!substackBlocks || substackBlocks.has(block.next))) {
+          dfs(block.next);
+          hasNext = true;
+        }
+      } else if (
+        ["control_repeat", "control_repeat_until", "control_forever"].includes(
+          block.opcode
+        )
+      ) {
+        let substackId = block.inputs.SUBSTACK
+          ? block.inputs.SUBSTACK[1]
+          : null;
+
+        if (substackId) dfs(substackId);
+
+        if (block.next && (!substackBlocks || substackBlocks.has(block.next))) {
+          dfs(block.next);
+          hasNext = true;
+        }
+      } else {
+        if (block.next && (!substackBlocks || substackBlocks.has(block.next))) {
+          dfs(block.next);
+          hasNext = true;
+        }
+      }
+    } else {
+      if (block.next && (!substackBlocks || substackBlocks.has(block.next))) {
+        dfs(block.next);
+        hasNext = true;
+      }
+    }
+
+    if (!hasNext) {
+      endpoints.push(currentId);
+    }
+  }
+
+  dfs(blockId);
+  return endpoints;
+}
+
+function isBlockInSameSubstack(currentBlockId, nextBlockId, blocks) {
+  // Implement logic to determine if nextBlockId is still within the same substack as currentBlockId
+  // This may involve checking the parent relationships or structure of the blocks
+  // For simplicity, let's assume blocks have a `parent` property
+  let currentBlock = blocks[currentBlockId];
+  let nextBlock = blocks[nextBlockId];
+  return currentBlock.parent === nextBlock.parent;
 }
 
 // Helper functions
@@ -315,75 +620,278 @@ function getBlockLabel(block, blocks) {
   switch (block.opcode) {
     // Event blocks (HAT_BLOCKS)
     case "event_whenflagclicked":
-      return "When Green Flag is clicked";
+      return "When the green flag is clicked";
     case "event_whenkeypressed":
-      return `When ${getFieldValue(block, "KEY_OPTION")} Key Pressed`;
+      return `When "${getFieldValue(block, "KEY_OPTION")}" key is pressed`;
     case "event_whenthisspriteclicked":
-      return "When This Sprite Clicked";
+      return "When this sprite is clicked";
     case "event_whenbackdropswitchesto":
-      return `When Backdrop Switches To ${getInputValue(
+      return `When backdrop switches to "${getInputValue(
         block,
         "BACKDROP",
         blocks
-      )}`;
+      )}"`;
     case "event_whenbroadcastreceived":
-      return `When I Receive ${getFieldValue(block, "BROADCAST_OPTION")}`;
+      return `When I receive "${getFieldValue(block, "BROADCAST_OPTION")}"`;
+    case "event_broadcast":
+      return `Broadcast "${getInputValue(block, "BROADCAST_INPUT", blocks)}"`;
+    case "event_broadcastandwait":
+      return `Broadcast "${getInputValue(
+        block,
+        "BROADCAST_INPUT",
+        blocks
+      )}" and wait`;
+
     // Control blocks
     case "control_wait":
-      return `Wait ${getInputValue(block, "DURATION", blocks)} Seconds`;
+      return `Wait ${getInputValue(block, "DURATION", blocks)} seconds`;
     case "control_stop":
-      return "Stop";
+      return `Stop "${getFieldValue(block, "STOP_OPTION")}"`;
     case "control_if":
-      return "If";
+      return `If (${getInputValue(block.inputs.CONDITION, blocks)})`;
     case "control_if_else":
-      return "If Else";
+      return `If Else (${getInputValue(block.inputs.CONDITION, blocks)})`;
     case "control_repeat":
-      return `Repeat ${getInputValue(block, "TIMES", blocks)}`;
+      return `Repeat ${getInputValue(block.inputs.TIMES, blocks)} times`;
+    case "control_repeat_until":
+      return `Repeat until (${getInputValue(block.inputs.CONDITION, blocks)})`;
     case "control_forever":
       return "Forever";
-    case "control_repeat_until":
-      return "Repeat Until";
+    case "control_wait_until":
+      return `Wait until (${getConditionLabel(block, blocks)})`;
+    case "control_for_each":
+      return `For each ${getFieldValue(block, "VARIABLE")} in ${getInputValue(
+        block,
+        "VALUE",
+        blocks
+      )}`;
+
     // Motion blocks
     case "motion_movesteps":
-      return `Move ${getInputValue(block, "STEPS", blocks)} Steps`;
+      return `Move ${getInputValue(block, "STEPS", blocks)} steps`;
     case "motion_turnright":
-      return `Turn Right ${getInputValue(block, "DEGREES", blocks)} Degrees`;
+      return `Turn ${getInputValue(
+        block,
+        "DEGREES",
+        blocks
+      )} degrees to the right`;
     case "motion_turnleft":
-      return `Turn Left ${getInputValue(block, "DEGREES", blocks)} Degrees`;
+      return `Turn ${getInputValue(
+        block,
+        "DEGREES",
+        blocks
+      )} degrees to the left`;
     case "motion_gotoxy":
-      return `Go To x: ${getInputValue(block, "X", blocks)}, y: ${getInputValue(
+      return `Go to x: ${getInputValue(block, "X", blocks)}, y: ${getInputValue(
         block,
         "Y",
         blocks
       )}`;
+    case "motion_glideto":
+      return `Glide ${getInputValue(
+        block,
+        "SECS",
+        blocks
+      )} secs to ${getInputValue(block, "TO", blocks)}`;
+    case "motion_pointindirection":
+      return `Point in direction ${getInputValue(block, "DIRECTION", blocks)}`;
+    case "motion_pointtowards":
+      return `Point towards ${getInputValue(block, "TOWARDS", blocks)}`;
+    case "motion_ifonedgebounce":
+      return "If on edge, bounce";
+    case "motion_setrotationstyle":
+      return `Set rotation style "${getFieldValue(block, "STYLE")}"`;
+
     // Looks blocks
     case "looks_say":
+      return `Say "${getInputValue(block, "MESSAGE", blocks)}"`;
     case "looks_sayforsecs":
-      return `Say ${getInputValue(block, "MESSAGE", blocks)}`;
+      return `Say "${getInputValue(
+        block,
+        "MESSAGE",
+        blocks
+      )}" for ${getInputValue(block, "SECS", blocks)} seconds`;
     case "looks_think":
+      return `Think "${getInputValue(block, "MESSAGE", blocks)}"`;
     case "looks_thinkforsecs":
-      return `Think ${getInputValue(block, "MESSAGE", blocks)}`;
+      return `Think "${getInputValue(
+        block,
+        "MESSAGE",
+        blocks
+      )}" for ${getInputValue(block, "SECS", blocks)} seconds`;
+    case "looks_switchcostumeto":
+      return `Switch costume to "${getInputValue(block, "COSTUME", blocks)}"`;
+    case "looks_nextcostume":
+      return "Switch to next costume";
+    case "looks_switchbackdropto":
+      return `Switch backdrop to "${getInputValue(block, "BACKDROP", blocks)}"`;
+    case "looks_nextbackdrop":
+      return "Switch to next backdrop";
+    case "looks_changeeffectby":
+      return `Change "${getFieldValue(
+        block,
+        "EFFECT"
+      )}" effect by ${getInputValue(block, "CHANGE", blocks)}`;
+    case "looks_seteffectto":
+      return `Set "${getFieldValue(block, "EFFECT")}" effect to ${getInputValue(
+        block,
+        "VALUE",
+        blocks
+      )}`;
+    case "looks_cleargraphiceffects":
+      return "Clear graphic effects";
+    case "looks_show":
+      return "Show";
+    case "looks_hide":
+      return "Hide";
+
     // Sound blocks
     case "sound_play":
+      return `Start sound "${getFieldValue(block, "SOUND_MENU")}"`;
     case "sound_playuntildone":
-      return `Play Sound ${getInputValue(block, "SOUND_MENU", blocks)}`;
+      return `Play sound "${getFieldValue(block, "SOUND_MENU")}" until done`;
+    case "sound_stopallsounds":
+      return "Stop all sounds";
+    case "sound_changeeffectby":
+      return `Change sound effect "${getFieldValue(
+        block,
+        "EFFECT"
+      )}" by ${getInputValue(block, "VALUE", blocks)}`;
+    case "sound_seteffectto":
+      return `Set sound effect "${getFieldValue(
+        block,
+        "EFFECT"
+      )}" to ${getInputValue(block, "VALUE", blocks)}`;
+    case "sound_cleareffects":
+      return "Clear sound effects";
+    case "sound_changevolumeby":
+      return `Change volume by ${getInputValue(block, "VOLUME", blocks)}`;
+    case "sound_setvolumeto":
+      return `Set volume to ${getInputValue(block, "VOLUME", blocks)}%`;
+
     // Sensing blocks
+    case "sensing_touchingobject":
+      return `Touching "${getInputValue(
+        block,
+        "TOUCHINGOBJECTMENU",
+        blocks
+      )}"?`;
+    case "sensing_touchingcolor":
+      return `Touching color ${getInputValue(block, "COLOR", blocks)}?`;
+    case "sensing_coloristouchingcolor":
+      return `Color ${getInputValue(
+        block,
+        "COLOR",
+        blocks
+      )} is touching ${getInputValue(block, "COLOR2", blocks)}?`;
+    case "sensing_distanceto":
+      return `Distance to "${getInputValue(block, "DISTANCETOMENU", blocks)}"`;
+    case "sensing_askandwait":
+      return `Ask "${getInputValue(block, "QUESTION", blocks)}" and wait`;
+    case "sensing_answer":
+      return "Answer";
+    case "sensing_keypressed":
+      return `Key "${getFieldValue(block, "KEY_OPTION")}" pressed?`;
+    case "sensing_mousedown":
+      return "Mouse down?";
+    case "sensing_mousex":
+      return "Mouse X position";
+    case "sensing_mousey":
+      return "Mouse Y position";
+    case "sensing_loudness":
+      return "Loudness";
+    case "sensing_timer":
+      return "Timer";
     case "sensing_resettimer":
-      return "Reset Timer";
+      return "Reset timer";
+
     // Data blocks
     case "data_setvariableto":
-      return `Set ${getFieldValue(block, "VARIABLE")} To ${getInputValue(
+      return `Set "${getFieldValue(block, "VARIABLE")}" to ${getInputValue(
         block,
         "VALUE",
         blocks
       )}`;
     case "data_changevariableby":
-      return `Change ${getFieldValue(block, "VARIABLE")} By ${getInputValue(
+      return `Change "${getFieldValue(block, "VARIABLE")}" by ${getInputValue(
         block,
         "VALUE",
         blocks
       )}`;
-    // Operators
+    case "data_showvariable":
+      return `Show variable "${getFieldValue(block, "VARIABLE")}"`;
+    case "data_hidevariable":
+      return `Hide variable "${getFieldValue(block, "VARIABLE")}"`;
+    case "data_addtolist":
+      return `Add ${getInputValue(block, "ITEM", blocks)} to "${getFieldValue(
+        block,
+        "LIST"
+      )}"`;
+    case "data_deleteoflist":
+      return `Delete ${getInputValue(
+        block,
+        "INDEX",
+        blocks
+      )} of "${getFieldValue(block, "LIST")}"`;
+    case "data_insertatlist":
+      return `Insert ${getInputValue(block, "ITEM", blocks)} at ${getInputValue(
+        block,
+        "INDEX",
+        blocks
+      )} of "${getFieldValue(block, "LIST")}"`;
+    case "data_replaceitemoflist":
+      return `Replace item ${getInputValue(
+        block,
+        "INDEX",
+        blocks
+      )} of "${getFieldValue(block, "LIST")}" with ${getInputValue(
+        block,
+        "ITEM",
+        blocks
+      )}`;
+    case "data_itemoflist":
+      return `Item ${getInputValue(block, "INDEX", blocks)} of "${getFieldValue(
+        block,
+        "LIST"
+      )}"`;
+    case "data_lengthoflist":
+      return `Length of "${getFieldValue(block, "LIST")}"`;
+    case "data_showlist":
+      return `Show list "${getFieldValue(block, "LIST")}"`;
+    case "data_hidelist":
+      return `Hide list "${getFieldValue(block, "LIST")}"`;
+
+    // Operator blocks
+    case "operator_add":
+      return `${getInputValue(block, "NUM1", blocks)} + ${getInputValue(
+        block,
+        "NUM2",
+        blocks
+      )}`;
+    case "operator_subtract":
+      return `${getInputValue(block, "NUM1", blocks)} - ${getInputValue(
+        block,
+        "NUM2",
+        blocks
+      )}`;
+    case "operator_multiply":
+      return `${getInputValue(block, "NUM1", blocks)} × ${getInputValue(
+        block,
+        "NUM2",
+        blocks
+      )}`;
+    case "operator_divide":
+      return `${getInputValue(block, "NUM1", blocks)} ÷ ${getInputValue(
+        block,
+        "NUM2",
+        blocks
+      )}`;
+    case "operator_random":
+      return `Pick random ${getInputValue(
+        block,
+        "FROM",
+        blocks
+      )} to ${getInputValue(block, "TO", blocks)}`;
     case "operator_equals":
       return `${getInputValue(block, "OPERAND1", blocks)} = ${getInputValue(
         block,
@@ -402,6 +910,47 @@ function getBlockLabel(block, blocks) {
         "OPERAND2",
         blocks
       )}`;
+    case "operator_and":
+      return `(${getInputValue(
+        block,
+        "OPERAND1",
+        blocks
+      )}) and (${getInputValue(block, "OPERAND2", blocks)})`;
+    case "operator_or":
+      return `(${getInputValue(block, "OPERAND1", blocks)}) or (${getInputValue(
+        block,
+        "OPERAND2",
+        blocks
+      )})`;
+    case "operator_not":
+      return `Not (${getInputValue(block, "OPERAND", blocks)})`;
+    case "operator_join":
+      return `Join "${getInputValue(
+        block,
+        "STRING1",
+        blocks
+      )}" and "${getInputValue(block, "STRING2", blocks)}"`;
+    case "operator_letter_of":
+      return `Letter ${getInputValue(
+        block,
+        "LETTER",
+        blocks
+      )} of "${getInputValue(block, "STRING", blocks)}"`;
+    case "operator_length":
+      return `Length of "${getInputValue(block, "STRING", blocks)}"`;
+    case "operator_contains":
+      return `Does "${getInputValue(
+        block,
+        "STRING1",
+        blocks
+      )}" contain "${getInputValue(block, "STRING2", blocks)}"?`;
+
+    // Procedures (Custom blocks)
+    case "procedures_definition":
+      return `Define custom block "${getProcedureName(block)}"`;
+    case "procedures_call":
+      return `Call custom block "${getProcedureName(block)}"`;
+
     // Default case
     default:
       // Convert opcode to a more readable format
@@ -420,17 +969,18 @@ function formatOpcode(opcode) {
 
 function getBlockType(block) {
   if (HAT_BLOCKS.includes(block.opcode) || block.opcode === "control_stop") {
-    return "terminator"; // Start or Stop
+    return "terminator";
   } else if (
     [
       "control_if",
       "control_if_else",
-      "control_repeat_until",
       "control_repeat",
-      "control_forever",
+      "control_repeat_until",
     ].includes(block.opcode)
   ) {
-    return "decision"; // Decision point
+    return "decision";
+  } else if (block.opcode === "control_forever") {
+    return "process"; // or 'operation', depending on flowchart.js support
   } else if (
     [
       "event_whenkeypressed",
@@ -443,9 +993,9 @@ function getBlockType(block) {
       "sound_playuntildone",
     ].includes(block.opcode)
   ) {
-    return "inputoutput"; // Input/Output
+    return "inputoutput";
   } else {
-    return "process"; // Process
+    return "process";
   }
 }
 
@@ -492,13 +1042,66 @@ function getFieldValue(block, fieldName) {
   return "";
 }
 
-function getLastBlockId(blockId, blocks) {
-  let currentId = blockId;
-  while (blocks[currentId] && blocks[currentId].next) {
-    currentId = blocks[currentId].next;
+function getProcedureName(block) {
+  if (block.mutation && block.mutation.proccode) {
+    return block.mutation.proccode;
   }
-  return currentId;
+  return "Custom Block";
 }
+
+// function getLastBlockId(blockId, blocks) {
+//   let currentId = blockId;
+//   while (blocks[currentId] && blocks[currentId].next) {
+//     currentId = blocks[currentId].next;
+//   }
+//   return currentId;
+// }
+
+// function getLastBlockIds(blockId, blocks) {
+//   let endpoints = [];
+//   function dfs(currentId) {
+//     let block = blocks[currentId];
+//     if (!block) return;
+
+//     if (block.opcode === "control_if" || block.opcode === "control_if_else") {
+//       let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
+//       let substack2Id = block.inputs.SUBSTACK2
+//         ? block.inputs.SUBSTACK2[1]
+//         : null;
+
+//       if (substackId) dfs(substackId);
+//       if (substack2Id) dfs(substack2Id);
+
+//       if (block.next && block.parent === blockId) {
+//         dfs(block.next);
+//       } else {
+//         endpoints.push(currentId);
+//       }
+//     } else if (
+//       ["control_repeat", "control_repeat_until", "control_forever"].includes(
+//         block.opcode
+//       )
+//     ) {
+//       let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
+
+//       if (substackId) dfs(substackId);
+
+//       if (block.next && block.parent === blockId) {
+//         dfs(block.next);
+//       } else {
+//         endpoints.push(currentId);
+//       }
+//     } else {
+//       if (block.next) {
+//         dfs(block.next);
+//       } else {
+//         endpoints.push(currentId);
+//       }
+//     }
+//   }
+//   dfs(blockId);
+//   return endpoints;
+// }
 
 function buildFlowchartDefinition(nodes, connections) {
   let nodeDefs = "";
@@ -582,14 +1185,16 @@ function renderFlowchart(definition, index) {
 
   try {
     var chart = flowchart.parse(definition);
+    console.log("definition", definition);
+
     chart.drawSVG(subContainerId, {
-      "line-width": 2,
-      "arrow-end": "block",
-      scale: 1,
+      // "line-width": 2,
+      // "arrow-end": "block",
+      // scale: 1,
       "yes-text": "Yes",
       "no-text": "No",
-      "font-size": 14,
-      "font-family": "Arial",
+      // "font-size": 14,
+      // "font-family": "Arial",
     });
   } catch (e) {
     console.error("Error rendering flowchart:", e);
