@@ -791,17 +791,21 @@ function getBlockLabel(block, blocks) {
     case "control_stop":
       return `Stop "${getFieldValue(block, "STOP_OPTION")}"`;
     case "control_if":
-      return `If (${getInputValue(block.inputs.CONDITION, blocks)})`;
+      return `If (${getInputValue(block, "CONDITION", blocks) || "condition"})`;
     case "control_if_else":
-      return `If Else (${getInputValue(block.inputs.CONDITION, blocks)})`;
+      return `If (${
+        getInputValue(block, "CONDITION", blocks) || "condition"
+      }) Else`;
     case "control_repeat":
-      return `Repeat ${getInputValue(block.inputs.TIMES, blocks)} times`;
+      return `Repeat ${getInputValue(block, "TIMES", blocks) || "10"} times`;
     case "control_repeat_until":
-      return `Repeat until (${getInputValue(block.inputs.CONDITION, blocks)})`;
-    case "control_forever":
-      return "Forever";
+      return `Repeat until (${
+        getInputValue(block, "CONDITION", blocks) || "condition"
+      })`;
     case "control_wait_until":
-      return `Wait until (${getConditionLabel(block, blocks)})`;
+      return `Wait until (${
+        getInputValue(block, "CONDITION", blocks) || "condition"
+      })`;
     case "control_for_each":
       return `For each ${getFieldValue(block, "VARIABLE")} in ${getInputValue(
         block,
@@ -1159,20 +1163,22 @@ function getInputValue(block, inputName, blocks) {
   if (block.inputs && block.inputs[inputName]) {
     let input = block.inputs[inputName];
     switch (input[0]) {
-      case 1:
-        // Literal value
+      case 1: // Literal value
         return input[1][1];
-      case 3:
-        // Block input (could be a reporter)
+      case 2: // Variable or list (handle this properly)
+        let variableOrListBlockId = input[1][1]; // Typically, the variable or list name is here
+        if (variableOrListBlockId) {
+          return variableOrListBlockId; // Return the variable or list name
+        }
+        break;
+      case 3: // Block input (another block or reporter block)
         let inputBlockId = input[1];
         let inputBlock = blocks[inputBlockId];
         if (inputBlock) {
+          // Recursively call getBlockLabel to get the label for the nested block
           return getBlockLabel(inputBlock, blocks);
         }
         break;
-      case 2:
-        // Variable or list
-        return input[1][1];
       default:
         return "";
     }
