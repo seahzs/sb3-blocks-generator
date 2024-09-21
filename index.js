@@ -268,7 +268,51 @@ function traverseBlocks(
   let nodeLabel = getBlockLabel(block, blocks);
   let nodeType = getBlockType(block);
 
+  // Skip adding the "forever" block to the nodes
+  if (block.opcode === "control_forever") {
+    let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
+
+    if (substackId) {
+      // Traverse the substack (do not add the "forever" block itself as a node)
+      traverseBlocks(substackId, blocks, nodes, connections, nodeCounter, null);
+
+      // Find the last block(s) in the substack
+      let lastBlockIds = getLastBlockIds(substackId, blocks);
+
+      // Create connections from last block(s) back to the first block
+      lastBlockIds.forEach((lastBlockId) => {
+        connections.push({
+          from: lastBlockId,
+          to: substackId, // Connect the last block to the first block
+          condition: "loop", // Indicate a loop
+        });
+      });
+    }
+
+    // If there's a next block after the forever loop, continue processing
+    if (block.next) {
+      traverseBlocks(
+        block.next,
+        blocks,
+        nodes,
+        connections,
+        nodeCounter,
+        exitTarget
+      );
+    }
+
+    return; // Stop further processing for this block
+  }
+
   nodes[blockId] = { id: nodeId, label: nodeLabel, type: nodeType };
+
+  console.log("opcode", block.opcode);
+
+  // Special handling for stop block (end)
+  if (block.opcode === "control_stop") {
+    nodes[blockId] = { id: nodeId, label: nodeLabel, type: "end" };
+    return; // No further traversal should happen after a stop block
+  }
 
   // Handle special blocks with inputs/substacks
   if (block.inputs) {
@@ -290,14 +334,14 @@ function traverseBlocks(
       } else {
         // If no substack, connect 'Yes' branch directly to next block or exitTarget
         let target = block.next || exitTarget;
-        if (target) {
+        if (target && blockId !== target) {
           connections.push({ from: blockId, to: target, condition: "yes" });
         }
       }
 
       // 'No' branch (condition false), connect to next block or exitTarget
       let target = block.next || exitTarget;
-      if (target) {
+      if (target && blockId !== target) {
         connections.push({ from: blockId, to: target, condition: "no" });
         traverseBlocks(
           target,
@@ -329,7 +373,7 @@ function traverseBlocks(
       } else {
         // If no substack, connect 'Yes' branch directly to next block or exitTarget
         let target = block.next || exitTarget;
-        if (target) {
+        if (target && blockId !== target) {
           connections.push({ from: blockId, to: target, condition: "yes" });
         }
       }
@@ -348,12 +392,10 @@ function traverseBlocks(
       } else {
         // If no substack2, connect 'No' branch directly to next block or exitTarget
         let target = block.next || exitTarget;
-        if (target) {
+        if (target && blockId !== target) {
           connections.push({ from: blockId, to: target, condition: "no" });
         }
       }
-
-      // No need to traverse block.next here, as it's handled via exitTarget in branches
     } else if (
       ["control_repeat", "control_repeat_until"].includes(block.opcode)
     ) {
@@ -380,7 +422,7 @@ function traverseBlocks(
 
         // 'Yes' branch (exit loop)
         let target = block.next || exitTarget;
-        if (target) {
+        if (target && blockId !== target) {
           connections.push({ from: blockId, to: target, condition: "yes" });
           traverseBlocks(
             target,
@@ -410,7 +452,7 @@ function traverseBlocks(
 
         // 'Yes' branch (exit loop)
         let target = block.next || exitTarget;
-        if (target) {
+        if (target && blockId !== target) {
           connections.push({ from: blockId, to: target, condition: "yes" });
           traverseBlocks(
             target,
@@ -423,28 +465,34 @@ function traverseBlocks(
         }
       }
     } else if (block.opcode === "control_forever") {
-      // Forever loop
+      // Forever loop block
       let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
       if (substackId) {
-        connections.push({ from: blockId, to: substackId, condition: "no" });
+        // Traverse the substack
         traverseBlocks(
           substackId,
           blocks,
           nodes,
           connections,
           nodeCounter,
-          blockId
+          null
         );
-      } else {
-        // If no substack, loop back directly
-        connections.push({ from: blockId, to: blockId, condition: "no" });
+
+        // Find the last block(s) in the substack
+        let lastBlockIds = getLastBlockIds(substackId, blocks);
+
+        // Create connections from last block(s) back to the first block
+        lastBlockIds.forEach((lastBlockId) => {
+          connections.push({
+            from: lastBlockId,
+            to: substackId,
+            condition: "loop",
+          });
+        });
       }
 
-      // No 'Yes' branch since it's an infinite loop
-    } else {
-      // Handle other blocks
+      // If there's a next block after the forever loop, connect it
       if (block.next) {
-        connections.push({ from: blockId, to: block.next });
         traverseBlocks(
           block.next,
           blocks,
@@ -453,7 +501,41 @@ function traverseBlocks(
           nodeCounter,
           exitTarget
         );
-      } else if (exitTarget) {
+      }
+
+      return; // Exit the function early for "forever" block
+    } else {
+      // Handle other blocks
+      if (block.next && blockId !== block.next) {
+        let nextBlock = blocks[block.next];
+
+        // Check if the next block is a forever block
+        if (nextBlock && nextBlock.opcode === "control_forever") {
+          let substackId = nextBlock.inputs.SUBSTACK
+            ? nextBlock.inputs.SUBSTACK[1]
+            : null;
+
+          // If the next block is a forever block, connect to the first block of the forever loop's substack
+          if (substackId) {
+            connections.push({
+              from: blockId,
+              to: substackId,
+              condition: "bottom",
+            });
+          }
+        } else {
+          connections.push({ from: blockId, to: block.next });
+        }
+
+        traverseBlocks(
+          block.next,
+          blocks,
+          nodes,
+          connections,
+          nodeCounter,
+          exitTarget
+        );
+      } else if (exitTarget && blockId !== exitTarget) {
         connections.push({ from: blockId, to: exitTarget });
         traverseBlocks(
           exitTarget,
@@ -467,7 +549,7 @@ function traverseBlocks(
     }
   } else {
     // No inputs, proceed to the next block
-    if (block.next) {
+    if (block.next && blockId !== block.next) {
       connections.push({ from: blockId, to: block.next });
       traverseBlocks(
         block.next,
@@ -477,11 +559,72 @@ function traverseBlocks(
         nodeCounter,
         exitTarget
       );
-    } else if (exitTarget) {
+    } else if (exitTarget && blockId !== exitTarget) {
       connections.push({ from: blockId, to: exitTarget });
       traverseBlocks(exitTarget, blocks, nodes, connections, nodeCounter, null);
     }
   }
+}
+
+function buildFlowchartDefinition(nodes, connections) {
+  let nodeDefs = "";
+  let connDefs = "";
+
+  // Build node definitions
+  for (let blockId in nodes) {
+    let node = nodes[blockId];
+    let nodeType = node.type;
+
+    // Adjust node types for Flowchart.js
+    if (nodeType === "terminator") {
+      // Use 'start' or 'end' based on the label
+      nodeType = node.label.toLowerCase().includes("when") ? "start" : "end";
+    } else if (nodeType === "process") {
+      nodeType = "operation";
+    } else if (nodeType === "decision") {
+      nodeType = "condition";
+    } else if (nodeType === "inputoutput") {
+      nodeType = "inputoutput";
+    }
+
+    // Build the node definition
+    nodeDefs += `${node.id}=>${nodeType}: ${node.label}\n`;
+  }
+
+  // Build connection definitions
+  for (let conn of connections) {
+    let fromNode = nodes[conn.from].id;
+    let toNode = nodes[conn.to].id;
+
+    // Check if both nodes exist before attempting to create the connection
+    if (!fromNode || !toNode) {
+      console.error(
+        `Connection error: Missing nodes for connection from ${conn.from} to ${conn.to}`
+      );
+      continue; // Skip this connection if either node is undefined
+    }
+
+    let connStr = `${fromNode}`;
+
+    if (conn.condition === "yes") {
+      connStr += `(yes)`;
+    } else if (conn.condition === "no") {
+      connStr += `(no)`;
+    } else if (conn.condition === "loop") {
+      connStr += `(left)`; // Use 'left' to create a loop back arrow
+    }
+
+    connStr += `->${toNode}\n`;
+
+    connDefs += connStr;
+  }
+
+  let definition = nodeDefs + "\n" + connDefs;
+
+  console.log("nodes ", nodes);
+  console.log("connections ", connections);
+
+  return definition;
 }
 
 // Function to collect all blocks within a substack
@@ -1011,6 +1154,8 @@ function getConditionLabel(block, blocks) {
 }
 
 function getInputValue(block, inputName, blocks) {
+  console.log("block", block);
+
   if (block.inputs && block.inputs[inputName]) {
     let input = block.inputs[inputName];
     switch (input[0]) {
@@ -1049,107 +1194,6 @@ function getProcedureName(block) {
   return "Custom Block";
 }
 
-// function getLastBlockId(blockId, blocks) {
-//   let currentId = blockId;
-//   while (blocks[currentId] && blocks[currentId].next) {
-//     currentId = blocks[currentId].next;
-//   }
-//   return currentId;
-// }
-
-// function getLastBlockIds(blockId, blocks) {
-//   let endpoints = [];
-//   function dfs(currentId) {
-//     let block = blocks[currentId];
-//     if (!block) return;
-
-//     if (block.opcode === "control_if" || block.opcode === "control_if_else") {
-//       let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
-//       let substack2Id = block.inputs.SUBSTACK2
-//         ? block.inputs.SUBSTACK2[1]
-//         : null;
-
-//       if (substackId) dfs(substackId);
-//       if (substack2Id) dfs(substack2Id);
-
-//       if (block.next && block.parent === blockId) {
-//         dfs(block.next);
-//       } else {
-//         endpoints.push(currentId);
-//       }
-//     } else if (
-//       ["control_repeat", "control_repeat_until", "control_forever"].includes(
-//         block.opcode
-//       )
-//     ) {
-//       let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
-
-//       if (substackId) dfs(substackId);
-
-//       if (block.next && block.parent === blockId) {
-//         dfs(block.next);
-//       } else {
-//         endpoints.push(currentId);
-//       }
-//     } else {
-//       if (block.next) {
-//         dfs(block.next);
-//       } else {
-//         endpoints.push(currentId);
-//       }
-//     }
-//   }
-//   dfs(blockId);
-//   return endpoints;
-// }
-
-function buildFlowchartDefinition(nodes, connections) {
-  let nodeDefs = "";
-  let connDefs = "";
-
-  // Build node definitions
-  for (let blockId in nodes) {
-    let node = nodes[blockId];
-    let nodeType = node.type;
-
-    // Adjust node types for Flowchart.js
-    if (nodeType === "terminator") {
-      // Use 'start' or 'end' based on the label
-      nodeType = node.label.toLowerCase().includes("when") ? "start" : "end";
-    } else if (nodeType === "process") {
-      nodeType = "operation";
-    } else if (nodeType === "decision") {
-      nodeType = "condition";
-    } else if (nodeType === "inputoutput") {
-      nodeType = "inputoutput";
-    }
-
-    // Build the node definition
-    nodeDefs += `${node.id}=>${nodeType}: ${node.label}\n`;
-  }
-
-  // Build connection definitions
-  for (let conn of connections) {
-    let fromNode = nodes[conn.from].id;
-    let toNode = nodes[conn.to].id;
-    let connStr = `${fromNode}`;
-
-    if (conn.condition === "yes") {
-      connStr += `(yes)`;
-    } else if (conn.condition === "no") {
-      connStr += `(no)`;
-    }
-
-    connStr += `->${toNode}\n`;
-
-    connDefs += connStr;
-  }
-
-  let definition = nodeDefs + "\n" + connDefs;
-
-  return definition;
-}
-
 // Function to render a single flowchart
 function renderFlowchart(definition, index) {
   const flowchartContainer = document.getElementById("flowchartContainer");
@@ -1185,16 +1229,14 @@ function renderFlowchart(definition, index) {
 
   try {
     var chart = flowchart.parse(definition);
-    console.log("definition", definition);
+    console.log(definition);
 
     chart.drawSVG(subContainerId, {
-      // "line-width": 2,
-      // "arrow-end": "block",
-      // scale: 1,
+      "line-width": 2,
+      "arrow-end": "block",
+      scale: 1,
       "yes-text": "Yes",
       "no-text": "No",
-      // "font-size": 14,
-      // "font-family": "Arial",
     });
   } catch (e) {
     console.error("Error rendering flowchart:", e);
