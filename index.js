@@ -624,58 +624,7 @@ function buildFlowchartDefinition(nodes, connections) {
   return definition;
 }
 
-// Function to collect all blocks within a substack
-function collectSubstackBlocks(blockId, blocks) {
-  let substackBlocks = new Set();
-  let visited = new Set();
-
-  function dfs(currentId) {
-    if (visited.has(currentId)) return;
-    visited.add(currentId);
-
-    let block = blocks[currentId];
-    if (!block) return;
-
-    substackBlocks.add(currentId);
-
-    if (block.inputs) {
-      if (block.opcode === "control_if" || block.opcode === "control_if_else") {
-        let substackId = block.inputs.SUBSTACK
-          ? block.inputs.SUBSTACK[1]
-          : null;
-        let substack2Id = block.inputs.SUBSTACK2
-          ? block.inputs.SUBSTACK2[1]
-          : null;
-
-        if (substackId) dfs(substackId);
-        if (substack2Id) dfs(substack2Id);
-
-        if (block.next) dfs(block.next);
-      } else if (
-        ["control_repeat", "control_repeat_until", "control_forever"].includes(
-          block.opcode
-        )
-      ) {
-        let substackId = block.inputs.SUBSTACK
-          ? block.inputs.SUBSTACK[1]
-          : null;
-
-        if (substackId) dfs(substackId);
-
-        if (block.next) dfs(block.next);
-      } else {
-        if (block.next) dfs(block.next);
-      }
-    } else {
-      if (block.next) dfs(block.next);
-    }
-  }
-
-  dfs(blockId);
-  return substackBlocks;
-}
-
-function getLastBlockIds(blockId, blocks, substackBlocks = null) {
+function getLastBlockIds(blockId, blocks) {
   let endpoints = [];
   let visited = {};
 
@@ -686,58 +635,16 @@ function getLastBlockIds(blockId, blocks, substackBlocks = null) {
     let block = blocks[currentId];
     if (!block) return;
 
-    if (substackBlocks && !substackBlocks.has(currentId)) {
-      // We have exited the substack
-      return;
-    }
-
     let hasNext = false;
 
-    if (block.inputs) {
-      if (block.opcode === "control_if" || block.opcode === "control_if_else") {
-        let substackId = block.inputs.SUBSTACK
-          ? block.inputs.SUBSTACK[1]
-          : null;
-        let substack2Id = block.inputs.SUBSTACK2
-          ? block.inputs.SUBSTACK2[1]
-          : null;
-
-        if (substackId) dfs(substackId);
-        if (substack2Id) dfs(substack2Id);
-
-        if (block.next && (!substackBlocks || substackBlocks.has(block.next))) {
-          dfs(block.next);
-          hasNext = true;
-        }
-      } else if (
-        ["control_repeat", "control_repeat_until", "control_forever"].includes(
-          block.opcode
-        )
-      ) {
-        let substackId = block.inputs.SUBSTACK
-          ? block.inputs.SUBSTACK[1]
-          : null;
-
-        if (substackId) dfs(substackId);
-
-        if (block.next && (!substackBlocks || substackBlocks.has(block.next))) {
-          dfs(block.next);
-          hasNext = true;
-        }
-      } else {
-        if (block.next && (!substackBlocks || substackBlocks.has(block.next))) {
-          dfs(block.next);
-          hasNext = true;
-        }
-      }
-    } else {
-      if (block.next && (!substackBlocks || substackBlocks.has(block.next))) {
-        dfs(block.next);
-        hasNext = true;
-      }
+    // Traverse through any connected blocks in the natural flow
+    if (block.next) {
+      dfs(block.next);
+      hasNext = true;
     }
 
     if (!hasNext) {
+      // If no next block, it is considered an endpoint
       endpoints.push(currentId);
     }
   }
@@ -1242,9 +1149,9 @@ function renderFlowchart(definition, index) {
     console.log(definition);
 
     chart.drawSVG(subContainerId, {
-      "line-width": 2,
-      "arrow-end": "block",
-      scale: 1,
+      // "line-width": 2,
+      // "arrow-end": "block",
+      // scale: 1,
       "yes-text": "Yes",
       "no-text": "No",
     });
