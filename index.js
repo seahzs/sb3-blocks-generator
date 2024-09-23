@@ -260,309 +260,290 @@ function traverseBlocks(
   exitTarget = null
 ) {
   let block = blocks[blockId];
-  if (!block) return;
+  if (!block || nodes[blockId]) return; // Prevent processing the same block multiple times
 
-  // Prevent processing the same block multiple times
-  if (nodes[blockId]) return;
-
-  // Assign a unique ID to the node
   let nodeId = "node" + nodeCounter.value++;
   let nodeLabel = getBlockLabel(block, blocks);
   let nodeType = getBlockType(block);
 
   // Skip adding the "forever" block to the nodes
   if (block.opcode === "control_forever") {
-    let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
-
-    if (substackId) {
-      // Traverse the substack (do not add the "forever" block itself as a node)
-      traverseBlocks(substackId, blocks, nodes, connections, nodeCounter, null);
-
-      // Find the last block(s) in the substack
-      let lastBlockIds = getLastBlockIds(substackId, blocks);
-
-      // Create connections from last block(s) back to the first block
-      lastBlockIds.forEach((lastBlockId) => {
-        connections.push({
-          from: lastBlockId,
-          to: substackId, // Connect the last block to the first block
-          condition: "loop", // Indicate a loop
-        });
-      });
-    }
-
-    // If there's a next block after the forever loop, continue processing
-    if (block.next) {
-      traverseBlocks(
-        block.next,
-        blocks,
-        nodes,
-        connections,
-        nodeCounter,
-        exitTarget
-      );
-    }
-
-    return; // Stop further processing for this block
+    processForeverBlock(
+      blockId,
+      block,
+      blocks,
+      nodes,
+      connections,
+      nodeCounter,
+      exitTarget
+    );
+    return;
   }
 
   nodes[blockId] = { id: nodeId, label: nodeLabel, type: nodeType };
 
-  // Special handling for stop block (end)
   if (block.opcode === "control_stop") {
-    nodes[blockId] = { id: nodeId, label: nodeLabel, type: "end" };
-    return; // No further traversal should happen after a stop block
+    nodes[blockId].type = "end"; // Special handling for stop block
+    return;
   }
 
-  // Handle special blocks with inputs/substacks
+  // Process special blocks with inputs/substacks
   if (block.inputs) {
-    if (block.opcode === "control_if") {
-      // If block
-      let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
-
-      // 'Yes' branch (condition true)
-      if (substackId) {
-        connections.push({ from: blockId, to: substackId, condition: "yes" });
-        traverseBlocks(
-          substackId,
-          blocks,
-          nodes,
-          connections,
-          nodeCounter,
-          block.next || exitTarget
-        );
-      } else {
-        // If no substack, connect 'Yes' branch directly to next block or exitTarget
-        let target = block.next || exitTarget;
-        if (target && blockId !== target) {
-          connections.push({ from: blockId, to: target, condition: "yes" });
-        }
-      }
-
-      // 'No' branch (condition false), connect to next block or exitTarget
-      let target = block.next || exitTarget;
-      if (target && blockId !== target) {
-        connections.push({ from: blockId, to: target, condition: "no" });
-        traverseBlocks(
-          target,
-          blocks,
-          nodes,
-          connections,
-          nodeCounter,
-          exitTarget
-        );
-      }
-    } else if (block.opcode === "control_if_else") {
-      // If Else block
-      let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
-      let substack2Id = block.inputs.SUBSTACK2
-        ? block.inputs.SUBSTACK2[1]
-        : null;
-
-      // 'Yes' branch (condition true)
-      if (substackId) {
-        connections.push({ from: blockId, to: substackId, condition: "yes" });
-        traverseBlocks(
-          substackId,
-          blocks,
-          nodes,
-          connections,
-          nodeCounter,
-          block.next || exitTarget
-        );
-      } else {
-        // If no substack, connect 'Yes' branch directly to next block or exitTarget
-        let target = block.next || exitTarget;
-        if (target && blockId !== target) {
-          connections.push({ from: blockId, to: target, condition: "yes" });
-        }
-      }
-
-      // 'No' branch (condition false)
-      if (substack2Id) {
-        connections.push({ from: blockId, to: substack2Id, condition: "no" });
-        traverseBlocks(
-          substack2Id,
-          blocks,
-          nodes,
-          connections,
-          nodeCounter,
-          block.next || exitTarget
-        );
-      } else {
-        // If no substack2, connect 'No' branch directly to next block or exitTarget
-        let target = block.next || exitTarget;
-        if (target && blockId !== target) {
-          connections.push({ from: blockId, to: target, condition: "no" });
-        }
-      }
-    } else if (
-      ["control_repeat", "control_repeat_until"].includes(block.opcode)
-    ) {
-      // Loop blocks
-      let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
-
-      // Add condition labels to loop connections
-      if (block.opcode === "control_repeat_until") {
-        // 'No' branch (continue looping)
-        if (substackId) {
-          connections.push({ from: blockId, to: substackId, condition: "no" });
-          traverseBlocks(
-            substackId,
-            blocks,
-            nodes,
-            connections,
-            nodeCounter,
-            blockId
-          );
-        } else {
-          // If no substack, loop back directly
-          connections.push({ from: blockId, to: blockId, condition: "no" });
-        }
-
-        // 'Yes' branch (exit loop)
-        let target = block.next || exitTarget;
-        if (target && blockId !== target) {
-          connections.push({ from: blockId, to: target, condition: "yes" });
-          traverseBlocks(
-            target,
-            blocks,
-            nodes,
-            connections,
-            nodeCounter,
-            exitTarget
-          );
-        }
-      } else if (block.opcode === "control_repeat") {
-        // 'No' branch (continue looping)
-        if (substackId) {
-          connections.push({ from: blockId, to: substackId, condition: "no" });
-          traverseBlocks(
-            substackId,
-            blocks,
-            nodes,
-            connections,
-            nodeCounter,
-            blockId
-          );
-        } else {
-          // If no substack, loop back directly
-          connections.push({ from: blockId, to: blockId, condition: "no" });
-        }
-
-        // 'Yes' branch (exit loop)
-        let target = block.next || exitTarget;
-        if (target && blockId !== target) {
-          connections.push({ from: blockId, to: target, condition: "yes" });
-          traverseBlocks(
-            target,
-            blocks,
-            nodes,
-            connections,
-            nodeCounter,
-            exitTarget
-          );
-        }
-      }
-    } else if (block.opcode === "control_forever") {
-      // Forever loop block
-      let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
-      if (substackId) {
-        // Traverse the substack
-        traverseBlocks(
-          substackId,
-          blocks,
-          nodes,
-          connections,
-          nodeCounter,
-          null
-        );
-
-        // Find the last block(s) in the substack
-        let lastBlockIds = getLastBlockIds(substackId, blocks);
-
-        // Create connections from last block(s) back to the first block
-        lastBlockIds.forEach((lastBlockId) => {
-          connections.push({
-            from: lastBlockId,
-            to: substackId,
-            condition: "loop",
-          });
-        });
-      }
-
-      // If there's a next block after the forever loop, connect it
-      if (block.next) {
-        traverseBlocks(
-          block.next,
-          blocks,
-          nodes,
-          connections,
-          nodeCounter,
-          exitTarget
-        );
-      }
-
-      return; // Exit the function early for "forever" block
-    } else {
-      // Handle other blocks
-      if (block.next && blockId !== block.next) {
-        let nextBlock = blocks[block.next];
-
-        // Check if the next block is a forever block
-        if (nextBlock && nextBlock.opcode === "control_forever") {
-          let substackId = nextBlock.inputs.SUBSTACK
-            ? nextBlock.inputs.SUBSTACK[1]
-            : null;
-
-          // If the next block is a forever block, connect to the first block of the forever loop's substack
-          if (substackId) {
-            connections.push({
-              from: blockId,
-              to: substackId,
-              condition: "bottom",
-            });
-          }
-        } else {
-          connections.push({ from: blockId, to: block.next });
-        }
-
-        traverseBlocks(
-          block.next,
-          blocks,
-          nodes,
-          connections,
-          nodeCounter,
-          exitTarget
-        );
-      } else if (exitTarget && blockId !== exitTarget) {
-        connections.push({ from: blockId, to: exitTarget });
-        traverseBlocks(
-          exitTarget,
-          blocks,
-          nodes,
-          connections,
-          nodeCounter,
-          null
-        );
-      }
-    }
-  } else {
-    // No inputs, proceed to the next block
-    if (block.next && blockId !== block.next) {
-      connections.push({ from: blockId, to: block.next });
-      traverseBlocks(
-        block.next,
+    if (["control_if", "control_if_else"].includes(block.opcode)) {
+      processIfBlocks(
+        blockId,
+        block,
         blocks,
         nodes,
         connections,
         nodeCounter,
         exitTarget
       );
-    } else if (exitTarget && blockId !== exitTarget) {
-      connections.push({ from: blockId, to: exitTarget });
-      traverseBlocks(exitTarget, blocks, nodes, connections, nodeCounter, null);
+    } else if (
+      ["control_repeat", "control_repeat_until"].includes(block.opcode)
+    ) {
+      processLoopBlocks(
+        blockId,
+        block,
+        blocks,
+        nodes,
+        connections,
+        nodeCounter,
+        exitTarget
+      );
+    } else {
+      handleOtherBlocks(
+        blockId,
+        block,
+        blocks,
+        nodes,
+        connections,
+        nodeCounter,
+        exitTarget
+      );
     }
+  } else {
+    handleNextBlock(
+      blockId,
+      block,
+      blocks,
+      nodes,
+      connections,
+      nodeCounter,
+      exitTarget
+    );
+  }
+}
+
+// Function to handle the "forever" block
+function processForeverBlock(
+  blockId, // Added blockId here
+  block,
+  blocks,
+  nodes,
+  connections,
+  nodeCounter,
+  exitTarget
+) {
+  let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
+  if (substackId) {
+    traverseBlocks(substackId, blocks, nodes, connections, nodeCounter, null);
+    let lastBlockIds = getLastBlockIds(substackId, blocks);
+    lastBlockIds.forEach((lastBlockId) => {
+      connections.push({
+        from: lastBlockId,
+        to: substackId,
+        condition: "loop",
+      });
+    });
+  }
+  if (block.next) {
+    traverseBlocks(
+      block.next,
+      blocks,
+      nodes,
+      connections,
+      nodeCounter,
+      exitTarget
+    );
+  }
+}
+
+// Function to handle "if" and "if_else" blocks
+function processIfBlocks(
+  blockId, // Added blockId here
+  block,
+  blocks,
+  nodes,
+  connections,
+  nodeCounter,
+  exitTarget
+) {
+  let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
+  let substack2Id = block.inputs.SUBSTACK2 ? block.inputs.SUBSTACK2[1] : null;
+
+  // Handle the "yes" branch
+  processSubstack(
+    substackId,
+    blockId,
+    "yes",
+    blocks,
+    nodes,
+    connections,
+    nodeCounter,
+    block.next || exitTarget
+  );
+
+  // Handle the "no" branch for if_else
+  if (block.opcode === "control_if_else") {
+    processSubstack(
+      substack2Id,
+      blockId,
+      "no",
+      blocks,
+      nodes,
+      connections,
+      nodeCounter,
+      block.next || exitTarget
+    );
+  } else {
+    let target = block.next || exitTarget;
+    if (target && blockId !== target) {
+      connections.push({ from: blockId, to: target, condition: "no" });
+      traverseBlocks(
+        target,
+        blocks,
+        nodes,
+        connections,
+        nodeCounter,
+        exitTarget
+      );
+    }
+  }
+}
+
+// Function to handle loops like "control_repeat" and "control_repeat_until"
+function processLoopBlocks(
+  blockId, // Added blockId here
+  block,
+  blocks,
+  nodes,
+  connections,
+  nodeCounter,
+  exitTarget
+) {
+  let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
+  if (substackId) {
+    connections.push({ from: blockId, to: substackId, condition: "no" });
+    traverseBlocks(
+      substackId,
+      blocks,
+      nodes,
+      connections,
+      nodeCounter,
+      blockId
+    );
+  } else {
+    connections.push({ from: blockId, to: blockId, condition: "no" });
+  }
+
+  let target = block.next || exitTarget;
+  if (target && blockId !== target) {
+    connections.push({ from: blockId, to: target, condition: "yes" });
+    traverseBlocks(target, blocks, nodes, connections, nodeCounter, exitTarget);
+  }
+}
+
+// Helper function to process substacks
+function processSubstack(
+  substackId,
+  blockId, // Added blockId here
+  condition,
+  blocks,
+  nodes,
+  connections,
+  nodeCounter,
+  nextTarget
+) {
+  if (substackId) {
+    connections.push({ from: blockId, to: substackId, condition: condition });
+    traverseBlocks(
+      substackId,
+      blocks,
+      nodes,
+      connections,
+      nodeCounter,
+      nextTarget
+    );
+  } else if (nextTarget && blockId !== nextTarget) {
+    connections.push({ from: blockId, to: nextTarget, condition: condition });
+    traverseBlocks(nextTarget, blocks, nodes, connections, nodeCounter, null);
+  }
+}
+
+// Function to handle other blocks
+function handleOtherBlocks(
+  blockId, // Added blockId here
+  block,
+  blocks,
+  nodes,
+  connections,
+  nodeCounter,
+  exitTarget
+) {
+  if (block.next && blockId !== block.next) {
+    let nextBlock = blocks[block.next];
+    if (nextBlock && nextBlock.opcode === "control_forever") {
+      let substackId = nextBlock.inputs.SUBSTACK
+        ? nextBlock.inputs.SUBSTACK[1]
+        : null;
+      if (substackId) {
+        connections.push({
+          from: blockId,
+          to: substackId,
+          condition: "bottom",
+        });
+      }
+    } else {
+      connections.push({ from: blockId, to: block.next });
+    }
+    traverseBlocks(
+      block.next,
+      blocks,
+      nodes,
+      connections,
+      nodeCounter,
+      exitTarget
+    );
+  } else if (exitTarget && blockId !== exitTarget) {
+    connections.push({ from: blockId, to: exitTarget });
+    traverseBlocks(exitTarget, blocks, nodes, connections, nodeCounter, null);
+  }
+}
+
+// Function to handle traversal to next block
+function handleNextBlock(
+  blockId, // Added blockId here
+  block,
+  blocks,
+  nodes,
+  connections,
+  nodeCounter,
+  exitTarget
+) {
+  if (block.next && blockId !== block.next) {
+    connections.push({ from: blockId, to: block.next });
+    traverseBlocks(
+      block.next,
+      blocks,
+      nodes,
+      connections,
+      nodeCounter,
+      exitTarget
+    );
+  } else if (exitTarget && blockId !== exitTarget) {
+    connections.push({ from: blockId, to: exitTarget });
+    traverseBlocks(exitTarget, blocks, nodes, connections, nodeCounter, null);
   }
 }
 
