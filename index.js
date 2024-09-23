@@ -140,6 +140,8 @@ function generateScratchblocks() {
 
       // New code for generating and rendering flowcharts
       generateAndRenderFlowcharts(hatBlocks, target.blocks);
+
+      console.log("target.blocks", target.blocks);
     }
   }
 }
@@ -305,8 +307,6 @@ function traverseBlocks(
   }
 
   nodes[blockId] = { id: nodeId, label: nodeLabel, type: nodeType };
-
-  console.log("opcode", block.opcode);
 
   // Special handling for stop block (end)
   if (block.opcode === "control_stop") {
@@ -621,9 +621,6 @@ function buildFlowchartDefinition(nodes, connections) {
 
   let definition = nodeDefs + "\n" + connDefs;
 
-  console.log("nodes ", nodes);
-  console.log("connections ", connections);
-
   return definition;
 }
 
@@ -784,6 +781,8 @@ function getBlockLabel(block, blocks) {
         "BROADCAST_INPUT",
         blocks
       )}" and wait`;
+    case "event_whengreaterthan":
+      return `When sensor value > ${getInputValue(block, "VALUE", blocks)}`;
 
     // Control blocks
     case "control_wait":
@@ -848,6 +847,10 @@ function getBlockLabel(block, blocks) {
       return "If on edge, bounce";
     case "motion_setrotationstyle":
       return `Set rotation style "${getFieldValue(block, "STYLE")}"`;
+    case "motion_setx":
+      return `Set x to ${getInputValue(block, "X", blocks)}`;
+    case "motion_sety":
+      return `Set y to ${getInputValue(block, "Y", blocks)}`;
 
     // Looks blocks
     case "looks_say":
@@ -891,6 +894,8 @@ function getBlockLabel(block, blocks) {
       return "Show";
     case "looks_hide":
       return "Hide";
+    case "looks_changesizeby":
+      return `Change size by ${getInputValue(block, "CHANGE", blocks)}`;
 
     // Sound blocks
     case "sound_play":
@@ -1158,25 +1163,24 @@ function getConditionLabel(block, blocks) {
 }
 
 function getInputValue(block, inputName, blocks) {
-  console.log("block", block);
-
   if (block.inputs && block.inputs[inputName]) {
     let input = block.inputs[inputName];
     switch (input[0]) {
       case 1: // Literal value
         return input[1][1];
-      case 2: // Variable or list (handle this properly)
-        let variableOrListBlockId = input[1][1]; // Typically, the variable or list name is here
-        if (variableOrListBlockId) {
-          return variableOrListBlockId; // Return the variable or list name
+      case 2: // Block reference (another block)
+        let referencedBlockId = input[1]; // Block ID reference
+        let referencedBlock = blocks[referencedBlockId];
+        if (referencedBlock) {
+          // Recursively get the label of the referenced block
+          return getBlockLabel(referencedBlock, blocks);
         }
-        break;
-      case 3: // Block input (another block or reporter block)
-        let inputBlockId = input[1];
-        let inputBlock = blocks[inputBlockId];
-        if (inputBlock) {
-          // Recursively call getBlockLabel to get the label for the nested block
-          return getBlockLabel(inputBlock, blocks);
+        return "";
+      case 3: // Another block input (similar to case 2 but nested differently)
+        let nestedBlockId = input[1];
+        let nestedBlock = blocks[nestedBlockId];
+        if (nestedBlock) {
+          return getBlockLabel(nestedBlock, blocks);
         }
         break;
       default:
