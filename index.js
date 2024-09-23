@@ -335,40 +335,6 @@ function traverseBlocks(
   }
 }
 
-// // Function to handle the "forever" block
-// function processForeverBlock(
-//   blockId, // Added blockId here
-//   block,
-//   blocks,
-//   nodes,
-//   connections,
-//   nodeCounter,
-//   exitTarget
-// ) {
-//   let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
-//   if (substackId) {
-//     traverseBlocks(substackId, blocks, nodes, connections, nodeCounter, null);
-//     let lastBlockIds = getLastBlockIds(substackId, blocks);
-//     lastBlockIds.forEach((lastBlockId) => {
-//       connections.push({
-//         from: lastBlockId,
-//         to: substackId,
-//         condition: "loop",
-//       });
-//     });
-//   }
-//   if (block.next) {
-//     traverseBlocks(
-//       block.next,
-//       blocks,
-//       nodes,
-//       connections,
-//       nodeCounter,
-//       exitTarget
-//     );
-//   }
-// }
-
 // Function to handle the "forever" block
 function processForeverBlock(
   blockId,
@@ -659,44 +625,6 @@ function buildFlowchartDefinition(nodes, connections) {
 
   return definition;
 }
-
-// function getLastBlockIds(blockId, blocks) {
-//   let endpoints = [];
-//   let visited = {};
-
-//   function dfs(currentId) {
-//     if (visited[currentId]) return;
-//     visited[currentId] = true;
-
-//     let block = blocks[currentId];
-//     if (!block) return;
-
-//     let hasNext = false;
-
-//     // Traverse through any connected blocks in the natural flow
-//     if (block.next) {
-//       dfs(block.next);
-//       hasNext = true;
-//     }
-
-//     if (!hasNext) {
-//       // If no next block, it is considered an endpoint
-//       endpoints.push(currentId);
-//     }
-//   }
-
-//   dfs(blockId);
-//   return endpoints;
-// }
-
-// function isBlockInSameSubstack(currentBlockId, nextBlockId, blocks) {
-//   // Implement logic to determine if nextBlockId is still within the same substack as currentBlockId
-//   // This may involve checking the parent relationships or structure of the blocks
-//   // For simplicity, let's assume blocks have a `parent` property
-//   let currentBlock = blocks[currentBlockId];
-//   let nextBlock = blocks[nextBlockId];
-//   return currentBlock.parent === nextBlock.parent;
-// }
 
 // Helper functions
 function getBlockLabel(block, blocks) {
@@ -1188,6 +1116,7 @@ function renderFlowchart(definition, index) {
       // "line-width": 2,
       // "arrow-end": "block",
       // scale: 1,
+      // "line-length": 100,
       "yes-text": "Yes",
       "no-text": "No",
     });
