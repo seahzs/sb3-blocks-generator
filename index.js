@@ -449,6 +449,20 @@ function processIfBlocks(
         block.next || exitTarget
       );
     }
+  } else {
+    // Handling case where if block is empty
+    let target = block.next || exitTarget;
+    if (target) {
+      connections.push({ from: blockId, to: target, condition: "yes" });
+      traverseBlocks(
+        target,
+        blocks,
+        nodes,
+        connections,
+        nodeCounter,
+        exitTarget
+      );
+    }
   }
 
   // Handle the "no" branch for if_else
@@ -492,6 +506,19 @@ function processIfBlocks(
           connections,
           nodeCounter,
           block.next || exitTarget
+        );
+      }
+    } else {
+      let target = block.next || exitTarget;
+      if (target) {
+        connections.push({ from: blockId, to: target, condition: "no" });
+        traverseBlocks(
+          target,
+          blocks,
+          nodes,
+          connections,
+          nodeCounter,
+          exitTarget
         );
       }
     }
@@ -1231,10 +1258,32 @@ function renderFlowchart(definition, index) {
     console.log(definition);
 
     chart.drawSVG(subContainerId, {
-      // "line-width": 2,
-      // "arrow-end": "block",
-      // scale: 1,
-      // "line-length": 100,
+      x: 0,
+      y: 0,
+      "line-width": 3,
+      "line-length": 50,
+      "font-size": 14,
+      "font-color": "black",
+      "line-color": "black",
+      "element-color": "black",
+      fill: "white",
+      "arrow-end": "block",
+      scale: 1,
+      // style symbol types
+      symbols: {
+        start: {
+          "font-color": "red",
+          "element-color": "green",
+          fill: "yellow",
+        },
+        end: {
+          class: "end-element",
+        },
+        condition: {
+          fill: "yellow",
+        },
+      },
+      "text-margin": 10,
       "yes-text": "Yes",
       "no-text": "No",
     });
