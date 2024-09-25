@@ -390,11 +390,12 @@ function processForeverBlock(
     console.log("substackId", substackId);
 
     // Create connection from the last block back to the first block (loop)
-    connections.push({
-      from: lastBlockId,
-      to: substackId,
-      condition: "foreverLoop",
-    });
+    // connections.push({
+    //   from: lastBlockId,
+    //   to: substackId,
+    //   condition: "foreverLoop",
+    // });
+    addConnection(connections, lastBlockId, substackId, "foreverLoop");
   }
   // Do NOT traverse blocks that come after the forever block.
   // Simply return, without calling traverseBlocks on block.next
@@ -425,11 +426,12 @@ function processIfBlocks(
 
       if (foreverSubstackId && blocks[foreverSubstackId]) {
         // Connect to the first block inside the forever loop and process it
-        connections.push({
-          from: blockId,
-          to: foreverSubstackId,
-          condition: "yes",
-        });
+        // connections.push({
+        //   from: blockId,
+        //   to: foreverSubstackId,
+        //   condition: "yes",
+        // });
+        addConnection(connections, blockId, foreverSubstackId, "yes");
         traverseBlocks(
           substackId,
           blocks,
@@ -441,7 +443,8 @@ function processIfBlocks(
         );
       } else {
         // If the forever loop has no blocks inside, connect the if block to itself (loop)
-        connections.push({ from: blockId, to: blockId, condition: "yes" });
+        // connections.push({ from: blockId, to: blockId, condition: "yes" });
+        addConnection(connections, blockId, blockId, "yes");
       }
       return; // Stop further processing after forever loop
     } else {
@@ -462,7 +465,8 @@ function processIfBlocks(
     // Handling case where if block is empty
     let target = block.next || exitTarget;
     if (target) {
-      connections.push({ from: blockId, to: target, condition: "yes" });
+      // connections.push({ from: blockId, to: target, condition: "yes" });
+      addConnection(connections, blockId, target, "yes");
       traverseBlocks(
         target,
         blocks,
@@ -487,11 +491,12 @@ function processIfBlocks(
 
         if (foreverSubstackId && blocks[foreverSubstackId]) {
           // Connect to the first block inside the forever loop and process it
-          connections.push({
-            from: blockId,
-            to: foreverSubstackId,
-            condition: "no",
-          });
+          // connections.push({
+          //   from: blockId,
+          //   to: foreverSubstackId,
+          //   condition: "no",
+          // });
+          addConnection(connections, blockId, foreverSubstackId, "no");
           traverseBlocks(
             substack2Id,
             blocks,
@@ -503,7 +508,8 @@ function processIfBlocks(
           );
         } else {
           // If the forever loop has no blocks inside, connect the if block to itself (loop)
-          connections.push({ from: blockId, to: blockId, condition: "no" });
+          // connections.push({ from: blockId, to: blockId, condition: "no" });
+          addConnection(connections, blockId, blockId, "no");
         }
         return; // Stop further processing after forever loop
       } else {
@@ -523,7 +529,8 @@ function processIfBlocks(
     } else {
       let target = block.next || exitTarget;
       if (target) {
-        connections.push({ from: blockId, to: target, condition: "no" });
+        // connections.push({ from: blockId, to: target, condition: "no" });
+        addConnection(connections, blockId, target, "no");
         traverseBlocks(
           target,
           blocks,
@@ -539,7 +546,8 @@ function processIfBlocks(
     // Connect to the next block if no forever block is present
     let target = block.next || exitTarget;
     if (target && blockId !== target) {
-      connections.push({ from: blockId, to: target, condition: "no" });
+      // connections.push({ from: blockId, to: target, condition: "no" });
+      addConnection(connections, blockId, target, "no");
       traverseBlocks(
         target,
         blocks,
@@ -575,11 +583,12 @@ function processLoopBlocks(
 
       if (foreverSubstackId && blocks[foreverSubstackId]) {
         // Connect to the first block inside the forever loop and process it
-        connections.push({
-          from: blockId,
-          to: foreverSubstackId,
-          condition: "no",
-        });
+        // connections.push({
+        //   from: blockId,
+        //   to: foreverSubstackId,
+        //   condition: "no",
+        // });
+        addConnection(connections, blockId, foreverSubstackId, "no");
         traverseBlocks(
           substackId,
           blocks,
@@ -591,12 +600,14 @@ function processLoopBlocks(
         );
       } else {
         // If the forever loop has no blocks inside, connect the loop back to itself (loop)
-        connections.push({ from: blockId, to: blockId, condition: "no" });
+        addConnection(connections, blockId, blockId, "no");
+        // connections.push({ from: blockId, to: blockId, condition: "no" });
       }
       return; // Stop further processing after forever loop
     } else {
       // Normal loop traversal if no forever block
-      connections.push({ from: blockId, to: substackId, condition: "no" });
+      // connections.push({ from: blockId, to: substackId, condition: "no" });
+      addConnection(connections, blockId, substackId, "no");
       traverseBlocks(
         substackId,
         blocks,
@@ -618,16 +629,19 @@ function processLoopBlocks(
     }
 
     // Connect the last block in the substack back to the loop start
-    connections.push({ from: lastBlockId, to: blockId, condition: "loop" });
+    // connections.push({ from: lastBlockId, to: blockId, condition: "loop" });
+    addConnection(connections, lastBlockId, blockId, "loop");
   } else {
     // Empty substack - loop back to itself
-    connections.push({ from: blockId, to: blockId, condition: "no" });
+    // connections.push({ from: blockId, to: blockId, condition: "no" });
+    addConnection(connections, blockId, blockId, "no");
   }
 
   // Handle the next block if no forever block is present
   let target = block.next || exitTarget;
   if (target && blockId !== target) {
-    connections.push({ from: blockId, to: target, condition: "yes" });
+    // connections.push({ from: blockId, to: target, condition: "yes" });
+    addConnection(connections, blockId, target, "yes");
     traverseBlocks(
       target,
       blocks,
@@ -653,7 +667,8 @@ function processSubstack(
   level
 ) {
   if (substackId) {
-    connections.push({ from: blockId, to: substackId, condition: condition });
+    // connections.push({ from: blockId, to: substackId, condition: condition });
+    addConnection(connections, blockId, substackId, condition);
     traverseBlocks(
       substackId,
       blocks,
@@ -664,7 +679,8 @@ function processSubstack(
       level
     );
   } else if (nextTarget && blockId !== nextTarget) {
-    connections.push({ from: blockId, to: nextTarget, condition: condition });
+    // connections.push({ from: blockId, to: nextTarget, condition: condition });
+    addConnection(connections, blockId, nextTarget, condition);
     traverseBlocks(
       nextTarget,
       blocks,
@@ -697,14 +713,16 @@ function handleOtherBlocks(
         ? nextBlock.inputs.SUBSTACK[1]
         : null;
       if (substackId) {
-        connections.push({
-          from: blockId,
-          to: substackId,
-          condition: "bottom",
-        });
+        // connections.push({
+        //   from: blockId,
+        //   to: substackId,
+        //   condition: "bottom",
+        // });
+        addConnection(connections, blockId, substackId, "bottom");
       }
     } else {
-      connections.push({ from: blockId, to: block.next });
+      // connections.push({ from: blockId, to: block.next });
+      addConnection(connections, blockId, block.next);
     }
     traverseBlocks(
       block.next,
@@ -850,25 +868,6 @@ function buildFlowchartDefinition(nodes, connections) {
 
     // Check if the connection is returning to a higher level
     const isReturningToHigherLevel = toNodeObj.level < fromNodeObj.level;
-
-    // Function to get available direction
-    // function getDirection(fromNodeId, preferredDirections) {
-    //   for (let dir of preferredDirections) {
-    //     if (!usedDirections[fromNodeId].has(dir)) {
-    //       usedDirections[fromNodeId].add(dir);
-    //       return dir;
-    //     }
-    //   }
-    //   // If all preferred directions are used, try any other direction
-    //   for (let dir of possibleDirections) {
-    //     if (!usedDirections[fromNodeId].has(dir)) {
-    //       usedDirections[fromNodeId].add(dir);
-    //       return dir;
-    //     }
-    //   }
-    //   // All directions used, default to 'bottom'
-    //   return "bottom";
-    // }
 
     // Use existing conditions
     if (conn.condition === "yes") {
