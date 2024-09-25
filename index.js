@@ -135,6 +135,7 @@ function generateScratchblocks() {
           })
         )
         .join("\n\n");
+
       textAreaInner.textContent = scratchblocksCode;
       renderSvg().then(renderPNG());
 
@@ -252,6 +253,18 @@ function generateFlowchartDefinition(hatKey, blocks) {
   return definition;
 }
 
+function addConnection(connections, from, to, condition) {
+  // Check if the connection already exists
+  if (
+    !connections.some(
+      (conn) =>
+        conn.from === from && conn.to === to && conn.condition === condition
+    )
+  ) {
+    connections.push({ from, to, condition });
+  }
+}
+
 // Function to traverse blocks and build nodes and connections
 function traverseBlocks(
   blockId,
@@ -259,12 +272,9 @@ function traverseBlocks(
   nodes,
   connections,
   nodeCounter,
-  exitTarget = null
+  exitTarget = null,
+  level = 0 // Add level parameter
 ) {
-  console.log(nodes);
-
-  console.log(blockId);
-
   let block = blocks[blockId];
   if (!block || nodes[blockId]) return; // Prevent processing the same block multiple times
 
@@ -286,12 +296,18 @@ function traverseBlocks(
       nodes,
       connections,
       nodeCounter,
-      exitTarget
+      exitTarget,
+      level
     );
     return;
   }
 
-  nodes[blockId] = { id: nodeId, label: nodeLabel, type: nodeType };
+  nodes[blockId] = {
+    id: nodeId,
+    label: nodeLabel,
+    type: nodeType,
+    level: level,
+  };
 
   // if (block.opcode === "control_stop") {
   //   nodes[blockId].type = "end"; // Special handling for stop block
@@ -299,7 +315,6 @@ function traverseBlocks(
   // }
 
   // Process special blocks with inputs/substacks
-  // if (block.inputs) {
   if (["control_if", "control_if_else"].includes(block.opcode)) {
     processIfBlocks(
       blockId,
@@ -308,7 +323,8 @@ function traverseBlocks(
       nodes,
       connections,
       nodeCounter,
-      exitTarget
+      exitTarget,
+      level
     );
   } else if (
     ["control_repeat", "control_repeat_until"].includes(block.opcode)
@@ -320,7 +336,8 @@ function traverseBlocks(
       nodes,
       connections,
       nodeCounter,
-      exitTarget
+      exitTarget,
+      level
     );
   } else {
     handleOtherBlocks(
@@ -330,20 +347,10 @@ function traverseBlocks(
       nodes,
       connections,
       nodeCounter,
-      exitTarget
+      exitTarget,
+      level
     );
   }
-  // } else {
-  //   handleNextBlock(
-  //     blockId,
-  //     block,
-  //     blocks,
-  //     nodes,
-  //     connections,
-  //     nodeCounter,
-  //     exitTarget
-  //   );
-  // }
 }
 
 // Function to handle the "forever" block
@@ -354,12 +361,21 @@ function processForeverBlock(
   nodes,
   connections,
   nodeCounter,
-  exitTarget
+  exitTarget,
+  level
 ) {
   let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
   if (substackId) {
     // Traverse the substack
-    traverseBlocks(substackId, blocks, nodes, connections, nodeCounter, null);
+    traverseBlocks(
+      substackId,
+      blocks,
+      nodes,
+      connections,
+      nodeCounter,
+      null,
+      level
+    );
 
     // Find the last block in the substack by following the `next` pointers
     let currentBlockId = substackId;
@@ -377,22 +393,12 @@ function processForeverBlock(
     connections.push({
       from: lastBlockId,
       to: substackId,
-      condition: "loop",
+      condition: "foreverLoop",
     });
   }
   // Do NOT traverse blocks that come after the forever block.
   // Simply return, without calling traverseBlocks on block.next
   return;
-  // if (block.next) {
-  //   traverseBlocks(
-  //     block.next,
-  //     blocks,
-  //     nodes,
-  //     connections,
-  //     nodeCounter,
-  //     exitTarget
-  //   );
-  // }
 }
 
 function processIfBlocks(
@@ -402,7 +408,8 @@ function processIfBlocks(
   nodes,
   connections,
   nodeCounter,
-  exitTarget
+  exitTarget,
+  level
 ) {
   let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
   let substack2Id = block.inputs.SUBSTACK2 ? block.inputs.SUBSTACK2[1] : null;
@@ -429,7 +436,8 @@ function processIfBlocks(
           nodes,
           connections,
           nodeCounter,
-          null
+          null,
+          level
         );
       } else {
         // If the forever loop has no blocks inside, connect the if block to itself (loop)
@@ -446,7 +454,8 @@ function processIfBlocks(
         nodes,
         connections,
         nodeCounter,
-        block.next || exitTarget
+        block.next || exitTarget,
+        level + 1
       );
     }
   } else {
@@ -460,7 +469,8 @@ function processIfBlocks(
         nodes,
         connections,
         nodeCounter,
-        exitTarget
+        exitTarget,
+        level
       );
     }
   }
@@ -488,7 +498,8 @@ function processIfBlocks(
             nodes,
             connections,
             nodeCounter,
-            null
+            null,
+            level
           );
         } else {
           // If the forever loop has no blocks inside, connect the if block to itself (loop)
@@ -505,7 +516,8 @@ function processIfBlocks(
           nodes,
           connections,
           nodeCounter,
-          block.next || exitTarget
+          block.next || exitTarget,
+          level + 1
         );
       }
     } else {
@@ -518,7 +530,8 @@ function processIfBlocks(
           nodes,
           connections,
           nodeCounter,
-          exitTarget
+          exitTarget,
+          level
         );
       }
     }
@@ -533,7 +546,8 @@ function processIfBlocks(
         nodes,
         connections,
         nodeCounter,
-        exitTarget
+        exitTarget,
+        level
       );
     }
   }
@@ -546,7 +560,8 @@ function processLoopBlocks(
   nodes,
   connections,
   nodeCounter,
-  exitTarget
+  exitTarget,
+  level
 ) {
   let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
 
@@ -571,7 +586,8 @@ function processLoopBlocks(
           nodes,
           connections,
           nodeCounter,
-          null
+          null,
+          level
         );
       } else {
         // If the forever loop has no blocks inside, connect the loop back to itself (loop)
@@ -587,21 +603,22 @@ function processLoopBlocks(
         nodes,
         connections,
         nodeCounter,
-        blockId
+        blockId,
+        level + 1
       );
     }
 
     // Find the last block of the substack (substackId)
-    let currentBlockId = substackId;
-    let lastBlockId = substackId;
-    while (currentBlockId && blocks[currentBlockId]) {
-      lastBlockId = currentBlockId;
-      let currentBlock = blocks[currentBlockId];
-      currentBlockId = currentBlock.next;
-    }
+    // let currentBlockId = substackId;
+    // let lastBlockId = substackId;
+    // while (currentBlockId && blocks[currentBlockId]) {
+    //   lastBlockId = currentBlockId;
+    //   let currentBlock = blocks[currentBlockId];
+    //   currentBlockId = currentBlock.next;
+    // }
 
-    // Connect the last block in the substack back to the loop start
-    connections.push({ from: lastBlockId, to: blockId, condition: "loop" });
+    // // Connect the last block in the substack back to the loop start
+    // connections.push({ from: lastBlockId, to: blockId, condition: "loop" });
   } else {
     // Empty substack - loop back to itself
     connections.push({ from: blockId, to: blockId, condition: "no" });
@@ -611,7 +628,15 @@ function processLoopBlocks(
   let target = block.next || exitTarget;
   if (target && blockId !== target) {
     connections.push({ from: blockId, to: target, condition: "yes" });
-    traverseBlocks(target, blocks, nodes, connections, nodeCounter, exitTarget);
+    traverseBlocks(
+      target,
+      blocks,
+      nodes,
+      connections,
+      nodeCounter,
+      exitTarget,
+      level
+    );
   }
 }
 
@@ -624,7 +649,8 @@ function processSubstack(
   nodes,
   connections,
   nodeCounter,
-  nextTarget
+  nextTarget,
+  level
 ) {
   if (substackId) {
     connections.push({ from: blockId, to: substackId, condition: condition });
@@ -634,11 +660,20 @@ function processSubstack(
       nodes,
       connections,
       nodeCounter,
-      nextTarget
+      nextTarget,
+      level
     );
   } else if (nextTarget && blockId !== nextTarget) {
     connections.push({ from: blockId, to: nextTarget, condition: condition });
-    traverseBlocks(nextTarget, blocks, nodes, connections, nodeCounter, null);
+    traverseBlocks(
+      nextTarget,
+      blocks,
+      nodes,
+      connections,
+      nodeCounter,
+      null,
+      level
+    );
   }
 }
 
@@ -650,7 +685,8 @@ function handleOtherBlocks(
   nodes,
   connections,
   nodeCounter,
-  exitTarget
+  exitTarget,
+  level
 ) {
   console.log("exitTarget", exitTarget);
 
@@ -676,43 +712,65 @@ function handleOtherBlocks(
       nodes,
       connections,
       nodeCounter,
-      exitTarget
+      exitTarget,
+      level
     );
   } else if (exitTarget && blockId !== exitTarget) {
     connections.push({ from: blockId, to: exitTarget });
-    traverseBlocks(exitTarget, blocks, nodes, connections, nodeCounter, null);
+    traverseBlocks(
+      exitTarget,
+      blocks,
+      nodes,
+      connections,
+      nodeCounter,
+      null,
+      level
+    );
   }
 }
 
-// Function to handle traversal to next block
-// function handleNextBlock(
-//   blockId, // Added blockId here
-//   block,
-//   blocks,
-//   nodes,
-//   connections,
-//   nodeCounter,
-//   exitTarget
-// ) {
-//   if (block.next && blockId !== block.next) {
-//     connections.push({ from: blockId, to: block.next });
-//     traverseBlocks(
-//       block.next,
-//       blocks,
-//       nodes,
-//       connections,
-//       nodeCounter,
-//       exitTarget
-//     );
-//   } else if (exitTarget && blockId !== exitTarget) {
-//     connections.push({ from: blockId, to: exitTarget });
-//     traverseBlocks(exitTarget, blocks, nodes, connections, nodeCounter, null);
-//   }
-// }
+function wrapLabel(label, maxLineLength) {
+  const words = label.split(" ");
+  let lines = [];
+  let currentLine = "";
+
+  for (let word of words) {
+    // Check if adding the next word exceeds the max line length
+    if (
+      (currentLine + (currentLine ? " " : "") + word).length <= maxLineLength
+    ) {
+      currentLine += (currentLine ? " " : "") + word;
+    } else {
+      if (currentLine) {
+        lines.push(currentLine);
+      }
+      // If the word itself is longer than maxLineLength, split the word
+      while (word.length > maxLineLength) {
+        lines.push(word.substring(0, maxLineLength));
+        word = word.substring(maxLineLength);
+      }
+      currentLine = word;
+    }
+  }
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  // Use '\n' for line breaks in Flowchart.js labels
+  return lines.join("\n");
+}
 
 function buildFlowchartDefinition(nodes, connections) {
   let nodeDefs = "";
   let connDefs = "";
+
+  const maxLineLengths = {
+    start: 40,
+    end: 40,
+    operation: 30,
+    condition: 12,
+    inputoutput: 18,
+    // You can add other types if necessary
+  };
 
   // Build node definitions
   for (let blockId in nodes) {
@@ -731,34 +789,131 @@ function buildFlowchartDefinition(nodes, connections) {
       nodeType = "inputoutput";
     }
 
+    // Determine maxLineLength based on nodeType
+    const maxLineLength = maxLineLengths[nodeType] || 30; // Default to 30 if not specified
+
+    // Wrap the label
+    let wrappedLabel = wrapLabel(node.label, maxLineLength);
+
     // Build the node definition
-    nodeDefs += `${node.id}=>${nodeType}: ${node.label}\n`;
+    nodeDefs += `${node.id}=>${nodeType}: ${wrappedLabel}\n`;
+  }
+
+  // Initialize usedDirections object
+  let usedDirections = {};
+  // Define possible directions
+  const possibleDirections = ["right", "left", "bottom", "top"];
+
+  function getDirection(fromNodeId, preferredDirections) {
+    for (let dir of preferredDirections) {
+      if (!usedDirections[fromNodeId].has(dir)) {
+        usedDirections[fromNodeId].add(dir);
+        return dir;
+      }
+    }
+    // If all preferred directions are used, try any other direction
+    for (let dir of possibleDirections) {
+      if (!usedDirections[fromNodeId].has(dir)) {
+        usedDirections[fromNodeId].add(dir);
+        return dir;
+      }
+    }
+    // All directions used, default to 'bottom'
+    return "bottom";
   }
 
   // Build connection definitions
   for (let conn of connections) {
-    console.log("from ", conn.from);
-    console.log("to ", conn.to);
-
-    let fromNode = nodes[conn.from].id;
-    let toNode = nodes[conn.to].id;
+    let fromNodeObj = nodes[conn.from];
+    let toNodeObj = nodes[conn.to];
 
     // Check if both nodes exist before attempting to create the connection
-    if (!fromNode || !toNode) {
+    if (!fromNodeObj || !toNodeObj) {
       console.error(
         `Connection error: Missing nodes for connection from ${conn.from} to ${conn.to}`
       );
       continue; // Skip this connection if either node is undefined
     }
 
+    let fromNode = fromNodeObj.id;
+    let toNode = toNodeObj.id;
+
     let connStr = `${fromNode}`;
 
+    // Initialize usedDirections for fromNode and toNode if not exist
+    if (!usedDirections[fromNode]) {
+      usedDirections[fromNode] = new Set();
+    }
+
+    // Determine direction based on conditions and levels
+    let direction = "";
+
+    // Check if the connection is returning to a higher level
+    const isReturningToHigherLevel = toNodeObj.level < fromNodeObj.level;
+
+    // Function to get available direction
+    // function getDirection(fromNodeId, preferredDirections) {
+    //   for (let dir of preferredDirections) {
+    //     if (!usedDirections[fromNodeId].has(dir)) {
+    //       usedDirections[fromNodeId].add(dir);
+    //       return dir;
+    //     }
+    //   }
+    //   // If all preferred directions are used, try any other direction
+    //   for (let dir of possibleDirections) {
+    //     if (!usedDirections[fromNodeId].has(dir)) {
+    //       usedDirections[fromNodeId].add(dir);
+    //       return dir;
+    //     }
+    //   }
+    //   // All directions used, default to 'bottom'
+    //   return "bottom";
+    // }
+
+    // Use existing conditions
     if (conn.condition === "yes") {
-      connStr += `(yes)`;
+      console.log("fromNode", fromNode);
+      console.log("conn", conn);
+
+      console.log(isReturningToHigherLevel);
+
+      if (isReturningToHigherLevel) {
+        // Returning to a higher level from a loop or condition
+        // Preferred directions: ['left', 'top']
+        let preferredDirections = ["left", "top"];
+        direction = getDirection(fromNode, preferredDirections);
+        connStr += `(yes,${direction})`;
+      } else {
+        // Regular "yes" connection into nested blocks
+        // Preferred directions: ['bottom', 'right']
+        let preferredDirections = ["bottom", "right"];
+        direction = getDirection(fromNode, preferredDirections);
+        connStr += `(yes,${direction})`;
+      }
     } else if (conn.condition === "no") {
-      connStr += `(no)`;
-    } else if (conn.condition === "loop") {
-      connStr += `(left)`; // Use 'left' to create a loop back arrow
+      // "No" connections
+      // Preferred directions: ['right', 'bottom']
+      let preferredDirections = ["right", "bottom"];
+      direction = getDirection(fromNode, preferredDirections);
+      connStr += `(no,${direction})`;
+    } else if (conn.condition === "loop" || conn.condition === "foreverLoop") {
+      // For loops, returning to a higher level
+      // Preferred directions: ['left', 'top']
+      let preferredDirections = ["left", "top"];
+      direction = getDirection(fromNode, preferredDirections);
+      connStr += `(${direction})`;
+    } else if (isReturningToHigherLevel) {
+      // Returning to a higher level in normal blocks
+      // Preferred directions: ['left', 'top']
+      let preferredDirections = ["left", "top"];
+      direction = getDirection(fromNode, preferredDirections);
+      connStr += `(${direction})`;
+    } else {
+      // General case: same level or deeper
+      // Preferred directions: ['bottom', 'right']
+      let preferredDirections = ["bottom", "right"];
+      direction = getDirection(fromNode, preferredDirections);
+      connStr += `(${direction})`;
     }
 
     connStr += `->${toNode}\n`;
@@ -811,7 +966,7 @@ function getBlockLabel(block, blocks) {
       return `If (${getInputValue(block, "CONDITION", blocks) || "condition"})`;
     case "control_repeat":
       return `Has repeated ${
-        getInputValue(block, "TIMES", blocks) || "10"
+        getInputValue(block, "TIMES", blocks) || "?"
       } times?`;
     case "control_repeat_until":
       return `Has repeated until (${
@@ -849,12 +1004,24 @@ function getBlockLabel(block, blocks) {
         "Y",
         blocks
       )}`;
+    case "motion_goto":
+      return `Go to ${getInputValue(block, "TO", blocks)}`;
     case "motion_glideto":
       return `Glide ${getInputValue(
         block,
         "SECS",
         blocks
       )} secs to ${getInputValue(block, "TO", blocks)}`;
+    case "motion_glidesecstoxy":
+      return `Glide ${getInputValue(
+        block,
+        "SECS",
+        blocks
+      )} secs to x: ${getInputValue(block, "X", blocks)}, y: ${getInputValue(
+        block,
+        "Y",
+        blocks
+      )}`;
     case "motion_pointindirection":
       return `Point in direction ${getInputValue(block, "DIRECTION", blocks)}`;
     case "motion_pointtowards":
@@ -912,6 +1079,15 @@ function getBlockLabel(block, blocks) {
       return "Hide";
     case "looks_changesizeby":
       return `Change size by ${getInputValue(block, "CHANGE", blocks)}`;
+    case "looks_goforwardbackwardlayers":
+      return `Go ${getFieldValue(block, "FORWARD_BACKWARD")} ${getInputValue(
+        block,
+        "NUM",
+        blocks
+      )} layer(s)`;
+
+    case "looks_gotofrontback":
+      return `Go to ${getFieldValue(block, "FRONT_BACK")} layer`;
 
     // Sound blocks
     case "sound_play":
@@ -959,7 +1135,7 @@ function getBlockLabel(block, blocks) {
     case "sensing_answer":
       return "Answer";
     case "sensing_keypressed":
-      return `Key "${getFieldValue(block, "KEY_OPTION")}" pressed?`;
+      return `Key "${getInputValue(block, "KEY_OPTION", blocks)}" pressed?`;
     case "sensing_mousedown":
       return "Mouse down?";
     case "sensing_mousex":
@@ -1121,6 +1297,10 @@ function getBlockLabel(block, blocks) {
 
     // Default case
     default:
+      // Check if the block has a mutation with a proccode (custom procedure)
+      if (block.mutation && block.mutation.proccode) {
+        return `Custom block: "${block.mutation.proccode}"`;
+      }
       // Convert opcode to a more readable format
       return formatOpcode(block.opcode);
   }
@@ -1130,9 +1310,33 @@ function getBlockLabel(block, blocks) {
 function formatOpcode(opcode) {
   // Replace underscores with spaces
   let label = opcode.replace(/_/g, " ");
+  // Remove any leading category names (e.g., "motion_", "control_")
+  label = label.replace(/^[a-z]+ /, "");
   // Capitalize first letter of each word
   label = label.replace(/\b\w/g, (char) => char.toUpperCase());
   return label;
+}
+
+function mapMenuValue(menuName, value) {
+  const mappings = {
+    // General mappings
+    _random_: "random position",
+    _mouse_: "mouse-pointer",
+    // Key options
+    space: "space",
+    "left arrow": "left arrow",
+    "right arrow": "right arrow",
+    "up arrow": "up arrow",
+    "down arrow": "down arrow",
+    // Front/Back options
+    front: "front",
+    back: "back",
+    // Forward/Backward options
+    forward: "forward",
+    backward: "backward",
+    // Add more mappings as necessary
+  };
+  return mappings[value] || value;
 }
 
 function getBlockType(block) {
@@ -1180,27 +1384,37 @@ function getConditionLabel(block, blocks) {
 
 function getInputValue(block, inputName, blocks) {
   if (block.inputs && block.inputs[inputName]) {
-    let input = block.inputs[inputName];
-    switch (input[0]) {
-      case 1: // Literal value
-        return input[1][1];
-      case 2: // Block reference (another block)
-        let referencedBlockId = input[1]; // Block ID reference
-        let referencedBlock = blocks[referencedBlockId];
-        if (referencedBlock) {
-          // Recursively get the label of the referenced block
+    const input = block.inputs[inputName];
+    const inputType = input[0];
+    const inputValue = input[1];
+
+    if (Array.isArray(inputValue)) {
+      // Input is a literal value
+      console.log("label_l", inputValue);
+
+      return inputValue[1];
+    } else if (typeof inputValue === "string") {
+      // Input is a block ID reference
+      const referencedBlockId = inputValue;
+      const referencedBlock = blocks[referencedBlockId];
+      console.log("label_r", referencedBlock);
+      if (referencedBlock) {
+        if (
+          referencedBlock.fields &&
+          Object.keys(referencedBlock.fields).length > 0
+        ) {
+          // The block has fields (e.g., a menu or variable)
+          for (const fieldName in referencedBlock.fields) {
+            const value = getFieldValue(referencedBlock, fieldName);
+            return mapMenuValue(fieldName, value);
+          }
+        } else {
+          console.log("label_woo");
+
+          // The block may have inputs (nested blocks) or be an operator/reporter
           return getBlockLabel(referencedBlock, blocks);
         }
-        return "";
-      case 3: // Another block input (similar to case 2 but nested differently)
-        let nestedBlockId = input[1];
-        let nestedBlock = blocks[nestedBlockId];
-        if (nestedBlock) {
-          return getBlockLabel(nestedBlock, blocks);
-        }
-        break;
-      default:
-        return "";
+      }
     }
   }
   return "";
@@ -1258,34 +1472,57 @@ function renderFlowchart(definition, index) {
     console.log(definition);
 
     chart.drawSVG(subContainerId, {
-      x: 0,
-      y: 0,
-      "line-width": 3,
-      "line-length": 50,
-      "font-size": 14,
-      "font-color": "black",
-      "line-color": "black",
-      "element-color": "black",
-      fill: "white",
-      "arrow-end": "block",
-      scale: 1,
-      // style symbol types
-      symbols: {
-        start: {
-          "font-color": "red",
-          "element-color": "green",
-          fill: "yellow",
-        },
-        end: {
-          class: "end-element",
-        },
-        condition: {
-          fill: "yellow",
-        },
-      },
-      "text-margin": 10,
+      // x: 0,
+      // y: 0,
+      "line-width": 2,
+      "line-length": 80,
+      // "text-margin": 10,
+      "font-size": 13,
+      // "font-color": "black",
+      // "line-color": "black",
+      // "element-color": "black",
+      // fill: "white",
       "yes-text": "Yes",
       "no-text": "No",
+      // "arrow-end": "block",
+      scale: 1,
+      // Adjust symbol styles
+      symbols: {
+        start: {
+          "font-color": "black",
+          "element-color": "green",
+          fill: "white",
+        },
+        end: {
+          "font-color": "black",
+          "element-color": "red",
+          fill: "white",
+        },
+        condition: {
+          "font-color": "black",
+          "element-color": "blue",
+          fill: "white",
+          class: "condition",
+        },
+        operation: {
+          "font-color": "black",
+          "element-color": "black",
+          fill: "white",
+        },
+        inputoutput: {
+          "font-color": "black",
+          "element-color": "orange",
+          fill: "white",
+        },
+      },
+      // Style flowchart lines
+      flowstate: {
+        past: { "line-color": "gray" },
+        current: { "line-color": "black" },
+        future: { "line-color": "gray" },
+        request: { "line-color": "blue" },
+        invalid: { "line-color": "red" },
+      },
     });
   } catch (e) {
     console.error("Error rendering flowchart:", e);
