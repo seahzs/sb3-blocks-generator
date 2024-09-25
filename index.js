@@ -609,16 +609,16 @@ function processLoopBlocks(
     }
 
     // Find the last block of the substack (substackId)
-    // let currentBlockId = substackId;
-    // let lastBlockId = substackId;
-    // while (currentBlockId && blocks[currentBlockId]) {
-    //   lastBlockId = currentBlockId;
-    //   let currentBlock = blocks[currentBlockId];
-    //   currentBlockId = currentBlock.next;
-    // }
+    let currentBlockId = substackId;
+    let lastBlockId = substackId;
+    while (currentBlockId && blocks[currentBlockId]) {
+      lastBlockId = currentBlockId;
+      let currentBlock = blocks[currentBlockId];
+      currentBlockId = currentBlock.next;
+    }
 
-    // // Connect the last block in the substack back to the loop start
-    // connections.push({ from: lastBlockId, to: blockId, condition: "loop" });
+    // Connect the last block in the substack back to the loop start
+    connections.push({ from: lastBlockId, to: blockId, condition: "loop" });
   } else {
     // Empty substack - loop back to itself
     connections.push({ from: blockId, to: blockId, condition: "no" });
