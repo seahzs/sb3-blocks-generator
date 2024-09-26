@@ -274,7 +274,10 @@ function traverseBlocks(
   nodeCounter,
   exitTarget = null,
   level = 0, // Add level parameter
-  isFirstInSubstack = false // New parameter
+  isFirstInSubstack = false, // New parameter
+  sequenceCounter = {
+    value: 0,
+  } // New parameter for vertical position
 ) {
   let block = blocks[blockId];
   if (!block || nodes[blockId]) return; // Prevent processing the same block multiple times
@@ -298,16 +301,20 @@ function traverseBlocks(
       connections,
       nodeCounter,
       exitTarget,
-      level
+      level,
+      sequenceCounter
     );
     return;
   }
 
+  // Assign sequence number and increment it
+  let sequence = sequenceCounter.value++;
   nodes[blockId] = {
     id: nodeId,
     label: nodeLabel,
     type: nodeType,
     level: level,
+    sequence: sequence,
     isFirstInSubstack: isFirstInSubstack, // Add this line
   };
 
@@ -321,7 +328,8 @@ function traverseBlocks(
       connections,
       nodeCounter,
       exitTarget,
-      level
+      level,
+      sequenceCounter
     );
   } else if (
     ["control_repeat", "control_repeat_until"].includes(block.opcode)
@@ -334,7 +342,8 @@ function traverseBlocks(
       connections,
       nodeCounter,
       exitTarget,
-      level
+      level,
+      sequenceCounter
     );
   } else {
     handleOtherBlocks(
@@ -345,7 +354,8 @@ function traverseBlocks(
       connections,
       nodeCounter,
       exitTarget,
-      level
+      level,
+      sequenceCounter
     );
   }
 }
@@ -359,7 +369,8 @@ function processForeverBlock(
   connections,
   nodeCounter,
   exitTarget,
-  level
+  level,
+  sequenceCounter
 ) {
   let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
   if (substackId) {
@@ -372,7 +383,8 @@ function processForeverBlock(
       nodeCounter,
       null,
       level,
-      true
+      true,
+      sequenceCounter
     );
 
     // Find the last block in the substack by following the `next` pointers
@@ -404,7 +416,8 @@ function processIfBlocks(
   connections,
   nodeCounter,
   exitTarget,
-  level
+  level,
+  sequenceCounter
 ) {
   let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
   let substack2Id = block.inputs.SUBSTACK2 ? block.inputs.SUBSTACK2[1] : null;
@@ -429,7 +442,8 @@ function processIfBlocks(
           nodeCounter,
           null,
           level,
-          true
+          true,
+          sequenceCounter
         );
       } else {
         // If the forever loop has no blocks inside, connect the if block to itself (loop)
@@ -446,7 +460,8 @@ function processIfBlocks(
         connections,
         nodeCounter,
         block.next || exitTarget,
-        level + 1
+        level + 1,
+        sequenceCounter
       );
     }
   } else {
@@ -511,7 +526,8 @@ function processIfBlocks(
         nodeCounter,
         exitTarget,
         level,
-        false
+        false,
+        sequenceCounter
       );
     }
   }
@@ -537,7 +553,8 @@ function processIfBlocks(
             nodeCounter,
             null,
             level,
-            true
+            true,
+            sequenceCounter
           );
         } else {
           // If the forever loop has no blocks inside, connect the if block to itself (loop)
@@ -555,7 +572,8 @@ function processIfBlocks(
           connections,
           nodeCounter,
           block.next || exitTarget,
-          level + 1
+          level + 1,
+          sequenceCounter
         );
       }
     } else {
@@ -619,7 +637,8 @@ function processIfBlocks(
           nodeCounter,
           exitTarget,
           level,
-          false
+          false,
+          sequenceCounter
         );
       }
     }
@@ -685,7 +704,8 @@ function processIfBlocks(
         nodeCounter,
         exitTarget,
         level,
-        false
+        false,
+        sequenceCounter
       );
     }
   }
@@ -699,7 +719,8 @@ function processLoopBlocks(
   connections,
   nodeCounter,
   exitTarget,
-  level
+  level,
+  sequenceCounter
 ) {
   let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
 
@@ -722,7 +743,8 @@ function processLoopBlocks(
           nodeCounter,
           null,
           level,
-          true
+          false,
+          sequenceCounter
         );
       } else {
         // If the forever loop has no blocks inside, connect the loop back to itself (loop)
@@ -739,7 +761,8 @@ function processLoopBlocks(
         nodeCounter,
         blockId,
         level + 1,
-        true
+        true,
+        sequenceCounter
       );
     }
 
@@ -753,7 +776,7 @@ function processLoopBlocks(
     }
 
     // Connect the last block in the substack back to the loop start
-    addConnection(connections, lastBlockId, blockId, "loop");
+    addConnection(connections, lastBlockId, blockId);
   } else {
     // Empty substack - loop back to itself
     addConnection(connections, blockId, blockId, "no");
@@ -820,7 +843,8 @@ function processLoopBlocks(
       nodeCounter,
       exitTarget,
       level,
-      false
+      false,
+      sequenceCounter
     );
   }
 }
@@ -835,7 +859,8 @@ function processSubstack(
   connections,
   nodeCounter,
   nextTarget,
-  level
+  level,
+  sequenceCounter
 ) {
   if (substackId) {
     addConnection(connections, blockId, substackId, condition);
@@ -847,7 +872,8 @@ function processSubstack(
       nodeCounter,
       nextTarget,
       level,
-      true
+      true,
+      sequenceCounter
     );
   } else if (nextTarget && blockId !== nextTarget) {
     addConnection(connections, blockId, nextTarget, condition);
@@ -858,8 +884,9 @@ function processSubstack(
       connections,
       nodeCounter,
       null,
-      level,
-      false
+      level - 1,
+      false,
+      sequenceCounter
     );
   }
 }
@@ -873,7 +900,8 @@ function handleOtherBlocks(
   connections,
   nodeCounter,
   exitTarget,
-  level
+  level,
+  sequenceCounter
 ) {
   console.log("exitTarget", exitTarget);
 
@@ -898,7 +926,8 @@ function handleOtherBlocks(
       nodeCounter,
       exitTarget,
       level,
-      false
+      false,
+      sequenceCounter
     );
   } else if (exitTarget && blockId !== exitTarget) {
     addConnection(connections, blockId, exitTarget);
@@ -909,8 +938,9 @@ function handleOtherBlocks(
       connections,
       nodeCounter,
       null,
-      level,
-      false
+      level - 1,
+      false,
+      sequenceCounter
     );
   }
 }
@@ -948,6 +978,8 @@ function wrapLabel(label, maxLineLength) {
 function buildFlowchartDefinition(nodes, connections) {
   let nodeDefs = "";
   let connDefs = "";
+
+  console.log("conns", nodes);
 
   const maxLineLengths = {
     start: 40,
