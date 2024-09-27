@@ -41,25 +41,13 @@ const HAT_BLOCKS = [
 ];
 
 // Event listeners
-document.getElementById("sb3Upload").addEventListener("change", (e) => {
-  e.preventDefault();
-  textContainer.hidden = true;
-  blocksContainer.hidden = true;
-  errorMsg.hidden = true;
-  sb3File = e.target.files[0];
-  parseSb3File(sb3File).then((projectJson) => {
-    loadProject(JSON.parse(projectJson));
-  });
-});
-
+document
+  .getElementById("sb3Upload")
+  .addEventListener("change", handleFileUpload);
 spriteList.addEventListener("change", generateScratchblocks);
 spriteList.addEventListener("click", generateScratchblocks);
-blockSize.addEventListener("change", () => {
-  renderSvg().then(renderPNG());
-});
-
+blockSize.addEventListener("change", handleBlockSizeChange);
 new ClipboardJS("#copyText");
-
 document
   .getElementById("downloadText")
   .addEventListener("click", generateTxtFileDownload);
@@ -71,7 +59,18 @@ document
   .getElementById("downloadPng")
   .addEventListener("click", generatePngFileDownload);
 
-// Existing functions remain unchanged
+// File handling functions
+function handleFileUpload(e) {
+  e.preventDefault();
+  textContainer.hidden = true;
+  blocksContainer.hidden = true;
+  errorMsg.hidden = true;
+  sb3File = e.target.files[0];
+  parseSb3File(sb3File).then((projectJson) => {
+    loadProject(JSON.parse(projectJson));
+  });
+}
+
 async function parseSb3File(file) {
   zip = await JSZip.loadAsync(file);
   project = await zip.file("project.json").async("text");
@@ -81,6 +80,10 @@ async function parseSb3File(file) {
 async function loadProject(projJSON) {
   projectData = projJSON;
   spriteForm.hidden = false;
+  updateSpriteList();
+}
+
+function updateSpriteList() {
   Array.from(spriteList.children)
     .filter((e) => e.value !== "_stage_")
     .forEach((elem) => {
@@ -96,57 +99,66 @@ async function loadProject(projJSON) {
     });
 }
 
+// UI utility functions
 function hideContainers(toHide) {
   textContainer.hidden = blocksContainer.hidden = toHide;
   errorMsg.hidden = !toHide;
 }
 
+function handleBlockSizeChange() {
+  renderSvg().then(renderPNG);
+}
+
+// Scratchblocks generation
 function generateScratchblocks() {
   if (!projectData || Object.keys(projectData).length === 0) {
     errorMsg.textContent = "Project data is empty/invalid.";
     hideContainers(true);
     return;
-  } else {
-    const spriteName = spriteList.value;
-    let target = projectData.targets.find((t) =>
-      spriteName === "_stage_" ? t.isStage : t.name === spriteName
-    );
-    if (!target) {
-      target = projectData.find((t) => t.isStage);
-    }
-    if (Object.keys(target.blocks).length == 0) {
-      errorMsg.textContent = "No blocks found.";
-      hideContainers(true);
-      return;
-    } else {
-      hideContainers(false);
-      const hatBlocks = Object.keys(target.blocks).filter((key) => {
-        const blockItem = target.blocks[key];
-        return (
-          // Modified condition to include hat blocks even if they don't have a 'next' block
-          blockItem.topLevel && HAT_BLOCKS.includes(blockItem.opcode)
-        );
-      });
-      scratchblocksCode = hatBlocks
-        .map((hatKey) =>
-          parseSB3Blocks.toScratchblocks(hatKey, target.blocks, "en", {
-            tab: " ".repeat(4),
-            variableStyle: "as-needed",
-          })
-        )
-        .join("\n\n");
-
-      textAreaInner.textContent = scratchblocksCode;
-      renderSvg().then(renderPNG());
-
-      // New code for generating and rendering flowcharts
-      generateAndRenderFlowcharts(hatBlocks, target.blocks);
-
-      console.log("target.blocks", target.blocks);
-    }
   }
+
+  const spriteName = spriteList.value;
+  let target = projectData.targets.find((t) =>
+    spriteName === "_stage_" ? t.isStage : t.name === spriteName
+  );
+  if (!target) {
+    target = projectData.find((t) => t.isStage);
+  }
+  if (Object.keys(target.blocks).length == 0) {
+    errorMsg.textContent = "No blocks found.";
+    hideContainers(true);
+    return;
+  }
+
+  hideContainers(false);
+  const hatBlocks = findHatBlocks(target.blocks);
+  scratchblocksCode = generateScratchblocksCode(hatBlocks, target.blocks);
+  textAreaInner.textContent = scratchblocksCode;
+  renderSvg().then(renderPNG);
+  generateAndRenderFlowcharts(hatBlocks, target.blocks);
+
+  console.log("target.blocks", target.blocks);
 }
 
+function findHatBlocks(blocks) {
+  return Object.keys(blocks).filter((key) => {
+    const blockItem = blocks[key];
+    return blockItem.topLevel && HAT_BLOCKS.includes(blockItem.opcode);
+  });
+}
+
+function generateScratchblocksCode(hatBlocks, blocks) {
+  return hatBlocks
+    .map((hatKey) =>
+      parseSB3Blocks.toScratchblocks(hatKey, blocks, "en", {
+        tab: " ".repeat(4),
+        variableStyle: "as-needed",
+      })
+    )
+    .join("\n\n");
+}
+
+// SVG and PNG rendering
 async function renderSvg() {
   const renderOpts = {
     style: "scratch3",
@@ -173,35 +185,33 @@ async function renderPNG() {
   return imgURL;
 }
 
+// File download functions
 function generateTxtFileDownload() {
-  const fileName =
-    sb3File.name.slice(0, -4) +
-    "_" +
-    spriteList.value.replace("_", "") +
-    ".txt";
+  const fileName = getFileName(".txt");
   const blob = new Blob([scratchblocksCode], { type: "text/plain" });
   const objectURL = URL.createObjectURL(blob);
   triggerDownload(objectURL, fileName, "text/plain");
 }
 
 function generateSvgFileDownload() {
-  const fileName =
-    sb3File.name.slice(0, -4) +
-    "_" +
-    spriteList.value.replace("_", "") +
-    ".svg";
+  const fileName = getFileName(".svg");
   triggerDownload(svgImg.src, fileName, "image/svg+xml");
 }
 
 function generatePngFileDownload() {
-  const fileName =
-    sb3File.name.slice(0, -4) +
-    "_" +
-    spriteList.value.replace("_", "") +
-    ".png";
+  const fileName = getFileName(".png");
   renderPNG().then((imgURL) => {
     triggerDownload(imgURL, fileName, "image/png");
   });
+}
+
+function getFileName(extension) {
+  return (
+    sb3File.name.slice(0, -4) +
+    "_" +
+    spriteList.value.replace("_", "") +
+    extension
+  );
 }
 
 function triggerDownload(objectURL, fileName, mimeType) {
@@ -215,20 +225,7 @@ function triggerDownload(objectURL, fileName, mimeType) {
   URL.revokeObjectURL(objectURL);
 }
 
-/* -------------------- */
-/* Flowchart Feature Code */
-/* -------------------- */
-/* -------------------- */
-/* -------------------- */
-/* -------------------- */
-/* -------------------- */
-/* -------------------- */
-/* -------------------- */
-/* -------------------- */
-/* -------------------- */
-/* -------------------- */
-
-// New function to generate and render flowcharts
+// Flowchart generation and rendering
 function generateAndRenderFlowcharts(hatBlocks, blocks) {
   const flowchartContainer = document.getElementById("flowchartContainer");
   flowchartContainer.innerHTML = ""; // Clear previous flowcharts
@@ -241,7 +238,6 @@ function generateAndRenderFlowcharts(hatBlocks, blocks) {
   });
 }
 
-// Function to generate flowchart definition for a single script
 function generateFlowchartDefinition(hatKey, blocks) {
   let nodes = {};
   let connections = [];
@@ -249,23 +245,9 @@ function generateFlowchartDefinition(hatKey, blocks) {
 
   traverseBlocks(hatKey, blocks, nodes, connections, nodeCounter);
 
-  let definition = buildFlowchartDefinition(nodes, connections);
-  return definition;
+  return buildFlowchartDefinition(nodes, connections);
 }
 
-function addConnection(connections, from, to, condition) {
-  // Check if the connection already exists
-  if (
-    !connections.some(
-      (conn) =>
-        conn.from === from && conn.to === to && conn.condition === condition
-    )
-  ) {
-    connections.push({ from, to, condition });
-  }
-}
-
-// Function to traverse blocks and build nodes and connections
 function traverseBlocks(
   blockId,
   blocks,
@@ -273,27 +255,21 @@ function traverseBlocks(
   connections,
   nodeCounter,
   exitTarget = null,
-  level = 0, // Add level parameter
-  isFirstInSubstack = false, // New parameter
-  sequenceCounter = {
-    value: 0,
-  } // New parameter for vertical position
+  parentLevel = 0,
+  parentSequence = 0
 ) {
   let block = blocks[blockId];
-  if (!block || nodes[blockId]) return; // Prevent processing the same block multiple times
+  if (!block || nodes[blockId]) return;
 
   let nodeId = "node" + nodeCounter.value++;
   let nodeLabel = getBlockLabel(block, blocks);
   let nodeType = getBlockType(block);
 
-  console.log("traversing ", block);
-  console.log(nodeId);
-  console.log(nodeLabel);
-  console.log(nodeType);
+  let currentLevel = parentLevel;
+  let currentSequence = parentSequence;
 
-  // Skip adding the "forever" block to the nodes
   if (block.opcode === "control_forever") {
-    processForeverBlock(
+    handleForeverBlock(
       blockId,
       block,
       blocks,
@@ -301,26 +277,22 @@ function traverseBlocks(
       connections,
       nodeCounter,
       exitTarget,
-      level,
-      sequenceCounter
+      currentLevel,
+      currentSequence
     );
     return;
   }
 
-  // Assign sequence number and increment it
-  let sequence = sequenceCounter.value++;
   nodes[blockId] = {
     id: nodeId,
     label: nodeLabel,
     type: nodeType,
-    level: level,
-    sequence: sequence,
-    isFirstInSubstack: isFirstInSubstack, // Add this line
+    level: currentLevel,
+    sequence: currentSequence,
   };
 
-  // Process special blocks with inputs/substacks
   if (["control_if", "control_if_else"].includes(block.opcode)) {
-    processIfBlocks(
+    handleIfBlocks(
       blockId,
       block,
       blocks,
@@ -328,13 +300,13 @@ function traverseBlocks(
       connections,
       nodeCounter,
       exitTarget,
-      level,
-      sequenceCounter
+      currentLevel,
+      currentSequence
     );
   } else if (
     ["control_repeat", "control_repeat_until"].includes(block.opcode)
   ) {
-    processLoopBlocks(
+    handleLoopBlocks(
       blockId,
       block,
       blocks,
@@ -342,8 +314,8 @@ function traverseBlocks(
       connections,
       nodeCounter,
       exitTarget,
-      level,
-      sequenceCounter
+      currentLevel,
+      currentSequence
     );
   } else {
     handleOtherBlocks(
@@ -354,14 +326,13 @@ function traverseBlocks(
       connections,
       nodeCounter,
       exitTarget,
-      level,
-      sequenceCounter
+      currentLevel,
+      currentSequence
     );
   }
 }
 
-// Function to handle the "forever" block
-function processForeverBlock(
+function handleForeverBlock(
   blockId,
   block,
   blocks,
@@ -369,12 +340,11 @@ function processForeverBlock(
   connections,
   nodeCounter,
   exitTarget,
-  level,
-  sequenceCounter
+  currentLevel,
+  currentSequence
 ) {
   let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
   if (substackId) {
-    // Traverse the substack
     traverseBlocks(
       substackId,
       blocks,
@@ -382,33 +352,15 @@ function processForeverBlock(
       connections,
       nodeCounter,
       null,
-      level,
-      true,
-      sequenceCounter
+      currentLevel,
+      currentSequence + 1
     );
-
-    // Find the last block in the substack by following the `next` pointers
-    let currentBlockId = substackId;
-    let lastBlockId = substackId;
-    while (currentBlockId) {
-      lastBlockId = currentBlockId;
-      let currentBlock = blocks[currentBlockId];
-      currentBlockId = currentBlock.next;
-    }
-
-    console.log("lastBlockId", lastBlockId);
-    console.log("substackId", substackId);
-
-    // Create connection from the last block back to the first block (loop)
-    // addConnection(connections, lastBlockId, substackId, "left");
+    let lastBlockId = findLastBlockInSubstack(substackId, blocks);
     addConnection(connections, lastBlockId, substackId);
   }
-  // Do NOT traverse blocks that come after the forever block.
-  // Simply return, without calling traverseBlocks on block.next
-  return;
 }
 
-function processIfBlocks(
+function handleIfBlocks(
   blockId,
   block,
   blocks,
@@ -416,23 +368,19 @@ function processIfBlocks(
   connections,
   nodeCounter,
   exitTarget,
-  level,
-  sequenceCounter
+  currentLevel,
+  currentSequence
 ) {
   let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
   let substack2Id = block.inputs.SUBSTACK2 ? block.inputs.SUBSTACK2[1] : null;
 
-  // Handle the "yes" branch
   if (substackId) {
     let substackBlock = blocks[substackId];
     if (substackBlock && substackBlock.opcode === "control_forever") {
-      // Connect to the first block inside the forever loop
       let foreverSubstackId = substackBlock.inputs.SUBSTACK
         ? substackBlock.inputs.SUBSTACK[1]
         : null;
-
       if (foreverSubstackId && blocks[foreverSubstackId]) {
-        // Connect to the first block inside the forever loop and process it
         addConnection(connections, blockId, foreverSubstackId, "yes");
         traverseBlocks(
           substackId,
@@ -441,82 +389,40 @@ function processIfBlocks(
           connections,
           nodeCounter,
           null,
-          level,
-          true,
-          sequenceCounter
+          currentLevel + 1,
+          currentSequence
         );
       } else {
-        // If the forever loop has no blocks inside, connect the if block to itself (loop)
         addConnection(connections, blockId, blockId, "yes");
       }
     } else {
-      // Connect to the substack as normal
-      processSubstack(
+      addConnection(connections, blockId, substackId, "yes");
+      traverseBlocks(
         substackId,
-        blockId,
-        "yes",
         blocks,
         nodes,
         connections,
         nodeCounter,
         block.next || exitTarget,
-        level + 1,
-        sequenceCounter
+        currentLevel + 1,
+        currentSequence
       );
     }
   } else {
-    // Handling case where if block is empty
-    // let target = block.next || exitTarget;
-    // if (target) {
-    //   addConnection(connections, blockId, target, "yes");
-    //   traverseBlocks(
-    //     target,
-    //     blocks,
-    //     nodes,
-    //     connections,
-    //     nodeCounter,
-    //     exitTarget,
-    //     level,
-    //     false
-    //   );
-    // }
     let target = block.next || exitTarget;
     if (target && blockId !== target) {
       let nextBlock = blocks[target];
       if (nextBlock && nextBlock.opcode === "control_forever") {
-        // Handle if block.next is a forever block
         let foreverSubstackId = nextBlock.inputs.SUBSTACK
           ? nextBlock.inputs.SUBSTACK[1]
           : null;
         if (foreverSubstackId && blocks[foreverSubstackId]) {
           addConnection(connections, blockId, foreverSubstackId, "yes");
-          // traverseBlocks(
-          //   foreverSubstackId,
-          //   blocks,
-          //   nodes,
-          //   connections,
-          //   nodeCounter,
-          //   null,
-          //   level,
-          //   false
-          // );
         } else {
-          // If the forever loop has no blocks inside, connect the block to itself (loop)
           addConnection(connections, blockId, blockId);
         }
       } else {
-        // Regular next block
         addConnection(connections, blockId, target, "yes");
-        // traverseBlocks(
-        //   target,
-        //   blocks,
-        //   nodes,
-        //   connections,
-        //   nodeCounter,
-        //   exitTarget,
-        //   level,
-        //   false
-        // );
       }
       traverseBlocks(
         target,
@@ -525,25 +431,20 @@ function processIfBlocks(
         connections,
         nodeCounter,
         exitTarget,
-        level,
-        false,
-        sequenceCounter
+        currentLevel + 1,
+        currentSequence
       );
     }
   }
 
-  // Handle the "no" branch for if_else
   if (block.opcode === "control_if_else") {
     if (substack2Id) {
       let substack2Block = blocks[substack2Id];
       if (substack2Block && substack2Block.opcode === "control_forever") {
-        // Connect to the first block inside the forever loop
         let foreverSubstackId = substack2Block.inputs.SUBSTACK
           ? substack2Block.inputs.SUBSTACK[1]
           : null;
-
         if (foreverSubstackId && blocks[foreverSubstackId]) {
-          // Connect to the first block inside the forever loop and process it
           addConnection(connections, blockId, foreverSubstackId, "no");
           traverseBlocks(
             substack2Id,
@@ -552,82 +453,42 @@ function processIfBlocks(
             connections,
             nodeCounter,
             null,
-            level,
-            true,
-            sequenceCounter
+            currentLevel,
+            // currentSequence + 2
+            currentSequence + 1
           );
         } else {
-          // If the forever loop has no blocks inside, connect the if block to itself (loop)
           addConnection(connections, blockId, blockId, "no");
         }
-        return; // Stop further processing after forever loop
       } else {
-        // Connect to the second substack as normal
-        processSubstack(
+        addConnection(connections, blockId, substack2Id, "no");
+        traverseBlocks(
           substack2Id,
-          blockId,
-          "no",
           blocks,
           nodes,
           connections,
           nodeCounter,
           block.next || exitTarget,
-          level + 1,
-          sequenceCounter
+          currentLevel,
+          // currentSequence + 2
+          currentSequence + 1
         );
       }
     } else {
-      // let target = block.next || exitTarget;
-      // if (target && blockId !== target) {
-      //   addConnection(connections, blockId, target, "no");
-      //   traverseBlocks(
-      //     target,
-      //     blocks,
-      //     nodes,
-      //     connections,
-      //     nodeCounter,
-      //     exitTarget,
-      //     level,
-      //     false
-      //   );
-      // }
       let target = block.next || exitTarget;
       if (target && blockId !== target) {
         let nextBlock = blocks[target];
         if (nextBlock && nextBlock.opcode === "control_forever") {
-          // Handle if block.next is a forever block
           let foreverSubstackId = nextBlock.inputs.SUBSTACK
             ? nextBlock.inputs.SUBSTACK[1]
             : null;
           if (foreverSubstackId && blocks[foreverSubstackId]) {
             addConnection(connections, blockId, foreverSubstackId, "no");
-            // traverseBlocks(
-            //   foreverSubstackId,
-            //   blocks,
-            //   nodes,
-            //   connections,
-            //   nodeCounter,
-            //   null,
-            //   level,
-            //   false
-            // );
           } else {
-            // If the forever loop has no blocks inside, connect the block to itself (loop)
             addConnection(connections, blockId, blockId);
           }
         } else {
-          // Regular next block
           addConnection(connections, blockId, target, "no");
-          // traverseBlocks(
-          //   target,
-          //   blocks,
-          //   nodes,
-          //   connections,
-          //   nodeCounter,
-          //   exitTarget,
-          //   level,
-          //   false
-          // );
         }
         traverseBlocks(
           target,
@@ -636,65 +497,27 @@ function processIfBlocks(
           connections,
           nodeCounter,
           exitTarget,
-          level,
-          false,
-          sequenceCounter
+          currentLevel,
+          // currentSequence + 2
+          currentSequence + 1
         );
       }
     }
   } else {
-    // Connect to the next block if no forever block is present
-    // let target = block.next || exitTarget;
-    // if (target && blockId !== target) {
-    //   addConnection(connections, blockId, target, "no");
-    //   traverseBlocks(
-    //     target,
-    //     blocks,
-    //     nodes,
-    //     connections,
-    //     nodeCounter,
-    //     exitTarget,
-    //     level,
-    //     false
-    //   );
-    // }
     let target = block.next || exitTarget;
     if (target && blockId !== target) {
       let nextBlock = blocks[target];
       if (nextBlock && nextBlock.opcode === "control_forever") {
-        // Handle if block.next is a forever block
         let foreverSubstackId = nextBlock.inputs.SUBSTACK
           ? nextBlock.inputs.SUBSTACK[1]
           : null;
         if (foreverSubstackId && blocks[foreverSubstackId]) {
           addConnection(connections, blockId, foreverSubstackId, "no");
-          // traverseBlocks(
-          //   foreverSubstackId,
-          //   blocks,
-          //   nodes,
-          //   connections,
-          //   nodeCounter,
-          //   null,
-          //   level,
-          //   false
-          // );
         } else {
-          // If the forever loop has no blocks inside, connect the block to itself (loop)
           addConnection(connections, blockId, blockId);
         }
       } else {
-        // Regular next block
         addConnection(connections, blockId, target, "no");
-        // traverseBlocks(
-        //   target,
-        //   blocks,
-        //   nodes,
-        //   connections,
-        //   nodeCounter,
-        //   exitTarget,
-        //   level,
-        //   false
-        // );
       }
       traverseBlocks(
         target,
@@ -703,15 +526,14 @@ function processIfBlocks(
         connections,
         nodeCounter,
         exitTarget,
-        level,
-        false,
-        sequenceCounter
+        currentLevel,
+        currentSequence + 1
       );
     }
   }
 }
 
-function processLoopBlocks(
+function handleLoopBlocks(
   blockId,
   block,
   blocks,
@@ -719,21 +541,18 @@ function processLoopBlocks(
   connections,
   nodeCounter,
   exitTarget,
-  level,
-  sequenceCounter
+  currentLevel,
+  currentSequence
 ) {
   let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
 
   if (substackId) {
     let substackBlock = blocks[substackId];
     if (substackBlock && substackBlock.opcode === "control_forever") {
-      // Connect to the first block inside the forever loop
       let foreverSubstackId = substackBlock.inputs.SUBSTACK
         ? substackBlock.inputs.SUBSTACK[1]
         : null;
-
       if (foreverSubstackId && blocks[foreverSubstackId]) {
-        // Connect to the first block inside the forever loop and process it
         addConnection(connections, blockId, foreverSubstackId, "no");
         traverseBlocks(
           substackId,
@@ -742,16 +561,13 @@ function processLoopBlocks(
           connections,
           nodeCounter,
           null,
-          level,
-          false,
-          sequenceCounter
+          currentLevel + 1,
+          currentSequence
         );
       } else {
-        // If the forever loop has no blocks inside, connect the loop back to itself (loop)
         addConnection(connections, blockId, blockId, "no");
       }
     } else {
-      // Normal loop traversal if no forever block
       addConnection(connections, blockId, substackId, "no");
       traverseBlocks(
         substackId,
@@ -760,80 +576,31 @@ function processLoopBlocks(
         connections,
         nodeCounter,
         blockId,
-        level + 1,
-        true,
-        sequenceCounter
+        currentLevel + 1,
+        currentSequence
       );
     }
 
-    // Find the last block of the substack (substackId)
-    let currentBlockId = substackId;
-    let lastBlockId = substackId;
-    while (currentBlockId && blocks[currentBlockId]) {
-      lastBlockId = currentBlockId;
-      let currentBlock = blocks[currentBlockId];
-      currentBlockId = currentBlock.next;
-    }
-
-    // Connect the last block in the substack back to the loop start
+    let lastBlockId = findLastBlockInSubstack(substackId, blocks);
     addConnection(connections, lastBlockId, blockId);
   } else {
-    // Empty substack - loop back to itself
     addConnection(connections, blockId, blockId, "no");
   }
 
-  // Handle the next block if no forever block is present
-  // let target = block.next || exitTarget;
-  // if (target && blockId !== target) {
-  //   addConnection(connections, blockId, target, "yes");
-  //   traverseBlocks(
-  //     target,
-  //     blocks,
-  //     nodes,
-  //     connections,
-  //     nodeCounter,
-  //     exitTarget,
-  //     level,
-  //     false
-  //   );
-  // }
   let target = block.next || exitTarget;
   if (target && blockId !== target) {
     let nextBlock = blocks[target];
     if (nextBlock && nextBlock.opcode === "control_forever") {
-      // Handle if block.next is a forever block
       let foreverSubstackId = nextBlock.inputs.SUBSTACK
         ? nextBlock.inputs.SUBSTACK[1]
         : null;
       if (foreverSubstackId && blocks[foreverSubstackId]) {
         addConnection(connections, blockId, foreverSubstackId, "yes");
-        // traverseBlocks(
-        //   foreverSubstackId,
-        //   blocks,
-        //   nodes,
-        //   connections,
-        //   nodeCounter,
-        //   null,
-        //   level,
-        //   false
-        // );
       } else {
-        // If the forever loop has no blocks inside, connect the block to itself (loop)
         addConnection(connections, blockId, blockId);
       }
     } else {
-      // Regular next block
       addConnection(connections, blockId, target, "yes");
-      // traverseBlocks(
-      //   target,
-      //   blocks,
-      //   nodes,
-      //   connections,
-      //   nodeCounter,
-      //   exitTarget,
-      //   level,
-      //   false
-      // );
     }
     traverseBlocks(
       target,
@@ -842,56 +609,12 @@ function processLoopBlocks(
       connections,
       nodeCounter,
       exitTarget,
-      level,
-      false,
-      sequenceCounter
+      currentLevel,
+      currentSequence + 1
     );
   }
 }
 
-// Helper function to process substacks
-function processSubstack(
-  substackId,
-  blockId,
-  condition,
-  blocks,
-  nodes,
-  connections,
-  nodeCounter,
-  nextTarget,
-  level,
-  sequenceCounter
-) {
-  if (substackId) {
-    addConnection(connections, blockId, substackId, condition);
-    traverseBlocks(
-      substackId,
-      blocks,
-      nodes,
-      connections,
-      nodeCounter,
-      nextTarget,
-      level,
-      true,
-      sequenceCounter
-    );
-  } else if (nextTarget && blockId !== nextTarget) {
-    addConnection(connections, blockId, nextTarget, condition);
-    traverseBlocks(
-      nextTarget,
-      blocks,
-      nodes,
-      connections,
-      nodeCounter,
-      null,
-      level - 1,
-      false,
-      sequenceCounter
-    );
-  }
-}
-
-// Function to handle other blocks
 function handleOtherBlocks(
   blockId,
   block,
@@ -900,10 +623,11 @@ function handleOtherBlocks(
   connections,
   nodeCounter,
   exitTarget,
-  level,
-  sequenceCounter
+  currentLevel,
+  currentSequence
 ) {
-  console.log("exitTarget", exitTarget);
+  console.log("blockId", block);
+  console.log("blockId", exitTarget);
 
   if (block.next && blockId !== block.next) {
     let nextBlock = blocks[block.next];
@@ -912,7 +636,6 @@ function handleOtherBlocks(
         ? nextBlock.inputs.SUBSTACK[1]
         : null;
       if (substackId) {
-        // addConnection(connections, blockId, substackId, "bottom");
         addConnection(connections, blockId, substackId);
       }
     } else {
@@ -925,9 +648,8 @@ function handleOtherBlocks(
       connections,
       nodeCounter,
       exitTarget,
-      level,
-      false,
-      sequenceCounter
+      currentLevel,
+      currentSequence + 1
     );
   } else if (exitTarget && blockId !== exitTarget) {
     addConnection(connections, blockId, exitTarget);
@@ -938,48 +660,39 @@ function handleOtherBlocks(
       connections,
       nodeCounter,
       null,
-      level - 1,
-      false,
-      sequenceCounter
+      currentLevel,
+      currentSequence
     );
   }
 }
 
-function wrapLabel(label, maxLineLength) {
-  const words = label.split(" ");
-  let lines = [];
-  let currentLine = "";
+function findLastBlockInSubstack(startBlockId, blocks) {
+  let currentBlockId = startBlockId;
+  let lastBlockId = startBlockId;
+  while (currentBlockId) {
+    lastBlockId = currentBlockId;
+    let currentBlock = blocks[currentBlockId];
+    currentBlockId = currentBlock.next;
+  }
+  return lastBlockId;
+}
 
-  for (let word of words) {
-    // Check if adding the next word exceeds the max line length
-    if (
-      (currentLine + (currentLine ? " " : "") + word).length <= maxLineLength
-    ) {
-      currentLine += (currentLine ? " " : "") + word;
-    } else {
-      if (currentLine) {
-        lines.push(currentLine);
-      }
-      // If the word itself is longer than maxLineLength, split the word
-      while (word.length > maxLineLength) {
-        lines.push(word.substring(0, maxLineLength));
-        word = word.substring(maxLineLength);
-      }
-      currentLine = word;
-    }
+function addConnection(connections, from, to, condition) {
+  if (
+    !connections.some(
+      (conn) =>
+        conn.from === from && conn.to === to && conn.condition === condition
+    )
+  ) {
+    connections.push({ from, to, condition });
   }
-  if (currentLine) {
-    lines.push(currentLine);
-  }
-  // Use '\n' for line breaks in Flowchart.js labels
-  return lines.join("\n");
 }
 
 function buildFlowchartDefinition(nodes, connections) {
   let nodeDefs = "";
   let connDefs = "";
 
-  console.log("conns", nodes);
+  console.log("nodes", nodes);
 
   const maxLineLengths = {
     start: 40,
@@ -987,70 +700,33 @@ function buildFlowchartDefinition(nodes, connections) {
     operation: 30,
     condition: 12,
     inputoutput: 18,
-    // You can add other types if necessary
   };
 
   // Build node definitions
   for (let blockId in nodes) {
     let node = nodes[blockId];
-    let nodeType = node.type;
+    let nodeType = getAdjustedNodeType(node);
 
-    // Adjust node types for Flowchart.js
-    if (nodeType === "terminator") {
-      // Use 'start' or 'end' based on the label
-      nodeType = node.label.toLowerCase().includes("when") ? "start" : "end";
-    } else if (nodeType === "process") {
-      nodeType = "operation";
-    } else if (nodeType === "decision") {
-      nodeType = "condition";
-    } else if (nodeType === "inputoutput") {
-      nodeType = "inputoutput";
-    }
-
-    // Determine maxLineLength based on nodeType
-    const maxLineLength = maxLineLengths[nodeType] || 30; // Default to 30 if not specified
-
-    // Wrap the label
+    const maxLineLength = maxLineLengths[nodeType] || 30;
     let wrappedLabel = wrapLabel(node.label, maxLineLength);
 
-    // Build the node definition
     nodeDefs += `${node.id}=>${nodeType}: ${wrappedLabel}\n`;
   }
 
   // Initialize usedDirections object
   let usedDirections = {};
-  // Define possible directions
   const possibleDirections = ["right", "left", "bottom", "top"];
-
-  function getDirection(fromNodeId, preferredDirections) {
-    for (let dir of preferredDirections) {
-      if (!usedDirections[fromNodeId].has(dir)) {
-        usedDirections[fromNodeId].add(dir);
-        return dir;
-      }
-    }
-    // If all preferred directions are used, try any other direction
-    for (let dir of possibleDirections) {
-      if (!usedDirections[fromNodeId].has(dir)) {
-        usedDirections[fromNodeId].add(dir);
-        return dir;
-      }
-    }
-    // All directions used, default to 'bottom'
-    return "bottom";
-  }
 
   // Build connection definitions
   for (let conn of connections) {
     let fromNodeObj = nodes[conn.from];
     let toNodeObj = nodes[conn.to];
 
-    // Check if both nodes exist before attempting to create the connection
     if (!fromNodeObj || !toNodeObj) {
       console.error(
         `Connection error: Missing nodes for connection from ${conn.from} to ${conn.to}`
       );
-      continue; // Skip this connection if either node is undefined
+      continue;
     }
 
     let fromNode = fromNodeObj.id;
@@ -1058,30 +734,17 @@ function buildFlowchartDefinition(nodes, connections) {
 
     let connStr = `${fromNode}`;
 
-    // Initialize usedDirections for fromNode if not exist
     if (!usedDirections[fromNode]) {
       usedDirections[fromNode] = new Set();
     }
 
-    // Determine direction based on the new logic
-    let direction = "";
-
-    if (fromNodeObj.level > toNodeObj.level) {
-      // Going from nested node to parent node
-      if (fromNodeObj.isFirstInSubstack) {
-        preferredDirections = ["top", "right"];
-      } else {
-        preferredDirections = ["left", "bottom"];
-      }
-    } else if (fromNodeObj.level < toNodeObj.level) {
-      // Going from parent node to nested node
-      preferredDirections = ["right", "bottom"];
-    } else {
-      // Same level
-      preferredDirections = ["bottom", "left"];
-    }
-
-    direction = getDirection(fromNode, preferredDirections);
+    let preferredDirections = getPreferredDirections(fromNodeObj, toNodeObj);
+    let direction = getDirection(
+      fromNode,
+      preferredDirections,
+      usedDirections,
+      possibleDirections
+    );
 
     if (conn.condition) {
       connStr += `(${conn.condition},${direction})`;
@@ -1094,9 +757,101 @@ function buildFlowchartDefinition(nodes, connections) {
     connDefs += connStr;
   }
 
-  let definition = nodeDefs + "\n" + connDefs;
+  return nodeDefs + "\n" + connDefs;
+}
 
-  return definition;
+function getAdjustedNodeType(node) {
+  switch (node.type) {
+    case "terminator":
+      return node.label.toLowerCase().includes("when") ? "start" : "end";
+    case "process":
+      return "operation";
+    case "decision":
+      return "condition";
+    case "inputoutput":
+      return "inputoutput";
+    default:
+      return "operation";
+  }
+}
+
+function getPreferredDirections(fromNodeObj, toNodeObj) {
+  // Nested node to parent node
+  if (fromNodeObj.level > toNodeObj.level) {
+    if (fromNodeObj.sequence < toNodeObj.sequence) {
+      return ["left", "bottom"];
+    } else if (fromNodeObj.sequence > toNodeObj.sequence) {
+      return ["left", "top"];
+    } else {
+      return ["top", "bottom", "left"];
+    }
+  } else if (fromNodeObj.level < toNodeObj.level) {
+    // Parent node to nested node
+    if (fromNodeObj.sequence < toNodeObj.sequence) {
+      return ["right", "bottom"];
+    } else if (fromNodeObj.sequence > toNodeObj.sequence) {
+      return ["right", "top"];
+    } else {
+      return ["right", "top", "bottom"];
+    }
+  } else {
+    // Same level nodes
+    if (fromNodeObj.sequence < toNodeObj.sequence) {
+      return ["bottom", "left"];
+    } else if (fromNodeObj.sequence > toNodeObj.sequence) {
+      return ["left", "right"];
+    } else {
+      return ["right"];
+    }
+  }
+}
+
+function getDirection(
+  fromNodeId,
+  preferredDirections,
+  usedDirections,
+  possibleDirections
+) {
+  for (let dir of preferredDirections) {
+    if (!usedDirections[fromNodeId].has(dir)) {
+      usedDirections[fromNodeId].add(dir);
+      return dir;
+    }
+  }
+  for (let dir of possibleDirections) {
+    if (!usedDirections[fromNodeId].has(dir)) {
+      usedDirections[fromNodeId].add(dir);
+      return dir;
+    }
+  }
+  return "bottom";
+}
+
+function wrapLabel(label, maxLineLength) {
+  const words = label.split(" ");
+  let lines = [];
+  let currentLine = "";
+
+  for (let word of words) {
+    if (
+      (currentLine + (currentLine ? " " : "") + word).length <= maxLineLength
+    ) {
+      currentLine += (currentLine ? " " : "") + word;
+    } else {
+      if (currentLine) {
+        lines.push(currentLine);
+      }
+      while (word.length > maxLineLength) {
+        lines.push(word.substring(0, maxLineLength));
+        word = word.substring(maxLineLength);
+      }
+      currentLine = word;
+    }
+  }
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  return lines.join("\n");
 }
 
 // Helper functions
@@ -1607,17 +1362,13 @@ function getProcedureName(block) {
   return "Custom Block";
 }
 
-// Function to render a single flowchart
 function renderFlowchart(definition, index) {
   const flowchartContainer = document.getElementById("flowchartContainer");
-
-  // Create a sub-container for each flowchart
   const subContainerId = "flowchartSubContainer" + index;
   const subContainer = document.createElement("div");
   subContainer.id = subContainerId;
   subContainer.style.marginBottom = "20px";
 
-  // Add download buttons for each flowchart
   const downloadButtons = document.createElement("div");
   downloadButtons.className = "flowchart-buttons";
 
@@ -1635,8 +1386,6 @@ function renderFlowchart(definition, index) {
 
   downloadButtons.appendChild(downloadSvgButton);
   downloadButtons.appendChild(downloadPngButton);
-
-  // Append buttons and flowchart container
   subContainer.appendChild(downloadButtons);
   flowchartContainer.appendChild(subContainer);
 
@@ -1645,21 +1394,12 @@ function renderFlowchart(definition, index) {
     console.log(definition);
 
     chart.drawSVG(subContainerId, {
-      // x: 0,
-      // y: 0,
       "line-width": 2,
       "line-length": 80,
-      // "text-margin": 10,
       "font-size": 13,
-      // "font-color": "black",
-      // "line-color": "black",
-      // "element-color": "black",
-      // fill: "white",
       "yes-text": "Yes",
       "no-text": "No",
-      // "arrow-end": "block",
       scale: 1,
-      // Adjust symbol styles
       symbols: {
         start: {
           "font-color": "black",
@@ -1688,7 +1428,6 @@ function renderFlowchart(definition, index) {
           fill: "white",
         },
       },
-      // Style flowchart lines
       flowstate: {
         past: { "line-color": "gray" },
         current: { "line-color": "black" },
@@ -1702,7 +1441,6 @@ function renderFlowchart(definition, index) {
   }
 }
 
-// Functions to download flowcharts
 function downloadFlowchartSvg(containerId, index) {
   const svgElement = document.getElementById(containerId).querySelector("svg");
   if (svgElement) {
@@ -1752,3 +1490,5 @@ function downloadFlowchartPng(containerId, index) {
     alert("Flowchart SVG not found.");
   }
 }
+
+// ... (any remaining helper functions or exports)
