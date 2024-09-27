@@ -424,7 +424,26 @@ function handleIfBlocks(
     );
   }
 
+  // Find the last block of both substacks
+  let lastBlockId1 = substackId
+    ? findLastBlockInSubstack(substackId, blocks)
+    : null;
+  let lastBlockId2 = substack2Id
+    ? findLastBlockInSubstack(substack2Id, blocks)
+    : null;
+
   if (block.next) {
+    // Connect the last block of each substack to the next block
+    if (lastBlockId1) {
+      addConnection(connections, lastBlockId1, block.next);
+    }
+    if (lastBlockId2) {
+      addConnection(connections, lastBlockId2, block.next);
+    }
+    // Also connect the if block itself to the next block for the 'no' path in a simple if
+    if (block.opcode === "control_if") {
+      addConnection(connections, blockId, block.next, "no");
+    }
     traverseBlocks(
       block.next,
       blocks,
@@ -435,6 +454,18 @@ function handleIfBlocks(
       currentLevel,
       currentSequence + (block.opcode === "control_if_else" ? 2 : 1)
     );
+  } else if (exitTarget) {
+    // If there's no next block but there's an exit target, connect to it
+    if (lastBlockId1) {
+      addConnection(connections, lastBlockId1, exitTarget);
+    }
+    if (lastBlockId2) {
+      addConnection(connections, lastBlockId2, exitTarget);
+    }
+    // For a simple if, also connect the if block itself to the exit target for the 'no' path
+    if (block.opcode === "control_if") {
+      addConnection(connections, blockId, exitTarget, "no");
+    }
   }
 }
 
