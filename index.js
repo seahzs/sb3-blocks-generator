@@ -344,6 +344,41 @@ function isIfElseNode(block) {
   return ["control_if", "control_if_else"].includes(block.opcode);
 }
 
+function countBlocksInSubstack(startBlockId, blocks) {
+  let count = 0;
+  let currentBlockId = startBlockId;
+  while (currentBlockId) {
+    count++;
+    let currentBlock = blocks[currentBlockId];
+    if (
+      currentBlock.opcode === "control_if" ||
+      currentBlock.opcode === "control_if_else"
+    ) {
+      // For if/else blocks, add the count of blocks in their substacks
+      if (currentBlock.inputs.SUBSTACK) {
+        count += countBlocksInSubstack(currentBlock.inputs.SUBSTACK[1], blocks);
+      }
+      if (currentBlock.inputs.SUBSTACK2) {
+        count += countBlocksInSubstack(
+          currentBlock.inputs.SUBSTACK2[1],
+          blocks
+        );
+      }
+    } else if (
+      ["control_repeat", "control_repeat_until", "control_forever"].includes(
+        currentBlock.opcode
+      )
+    ) {
+      // For loop blocks, add the count of blocks in their substack
+      if (currentBlock.inputs.SUBSTACK) {
+        count += countBlocksInSubstack(currentBlock.inputs.SUBSTACK[1], blocks);
+      }
+    }
+    currentBlockId = currentBlock.next;
+  }
+  return count;
+}
+
 function handleForeverBlock(
   blockId,
   block,
@@ -437,18 +472,41 @@ function handleIfBlocks(
   }
 
   if (block.opcode === "control_if_else" && substack2Id) {
-    addConnection(connections, blockId, substack2Id, "no");
-    traverseBlocks(
-      substack2Id,
-      blocks,
-      nodes,
-      connections,
-      nodeCounter,
-      null,
-      currentLevel + 1,
-      currentSequence + 1,
-      foreverStartId
-    );
+    let substack2Block = blocks[substack2Id];
+    if (substack2Block && substack2Block.opcode === "control_forever") {
+      let foreverSubstackId = substack2Block.inputs.SUBSTACK
+        ? substack2Block.inputs.SUBSTACK[1]
+        : null;
+      if (foreverSubstackId && blocks[foreverSubstackId]) {
+        addConnection(connections, blockId, foreverSubstackId, "no");
+        traverseBlocks(
+          substack2Id,
+          blocks,
+          nodes,
+          connections,
+          nodeCounter,
+          null,
+          currentLevel,
+          currentSequence + 1,
+          foreverSubstackId
+        );
+      } else {
+        addConnection(connections, blockId, blockId, "no");
+      }
+    } else {
+      addConnection(connections, blockId, substack2Id, "no");
+      traverseBlocks(
+        substack2Id,
+        blocks,
+        nodes,
+        connections,
+        nodeCounter,
+        null,
+        currentLevel,
+        currentSequence + 1,
+        foreverStartId
+      );
+    }
   }
 
   // Find the last block of both substacks
@@ -462,12 +520,41 @@ function handleIfBlocks(
   let nextTarget = block.next || exitTarget || foreverStartId;
 
   if (nextTarget) {
-    if (lastBlockId1) addConnection(connections, lastBlockId1, nextTarget);
-    if (lastBlockId2) addConnection(connections, lastBlockId2, nextTarget);
+    let nextBlock = blocks[nextTarget];
+    if (nextBlock && nextBlock.opcode === "control_forever") {
+      let foreverSubstackId = nextBlock.inputs.SUBSTACK
+        ? nextBlock.inputs.SUBSTACK[1]
+        : null;
+      if (foreverSubstackId && blocks[foreverSubstackId]) {
+        nextTarget = foreverSubstackId;
+      }
+    }
+
+    if (lastBlockId1) {
+      let lastBlock1 = blocks[lastBlockId1];
+      if (isLoopBlock(lastBlock1)) {
+        addConnection(connections, lastBlockId1, nextTarget, "yes");
+      } else {
+        addConnection(connections, lastBlockId1, nextTarget);
+      }
+    }
+
+    if (lastBlockId2) {
+      let lastBlock2 = blocks[lastBlockId2];
+      if (isLoopBlock(lastBlock2)) {
+        addConnection(connections, lastBlockId2, nextTarget, "yes");
+      } else {
+        addConnection(connections, lastBlockId2, nextTarget);
+      }
+    }
+
     if (block.opcode === "control_if")
       addConnection(connections, blockId, nextTarget, "no");
 
     if (block.next) {
+      let substack2Length = substack2Id
+        ? countBlocksInSubstack(substack2Id, blocks)
+        : 0;
       traverseBlocks(
         block.next,
         blocks,
@@ -476,47 +563,35 @@ function handleIfBlocks(
         nodeCounter,
         exitTarget,
         currentLevel,
-        currentSequence + (block.opcode === "control_if_else" ? 2 : 1),
+        currentSequence + 1 + substack2Length,
         foreverStartId
       );
     }
+  } else if (foreverStartId) {
+    // If there's no next block but we're in a forever loop, connect back to the start
+    if (lastBlockId1) {
+      let lastBlock1 = blocks[lastBlockId1];
+      if (isLoopBlock(lastBlock1)) {
+        addConnection(connections, lastBlockId1, foreverStartId, "yes");
+      } else {
+        addConnection(connections, lastBlockId1, foreverStartId);
+      }
+    }
+    if (lastBlockId2) {
+      let lastBlock2 = blocks[lastBlockId2];
+      if (isLoopBlock(lastBlock2)) {
+        addConnection(connections, lastBlockId2, foreverStartId, "yes");
+      } else {
+        addConnection(connections, lastBlockId2, foreverStartId);
+      }
+    }
+    if (block.opcode === "control_if")
+      addConnection(connections, blockId, foreverStartId, "no");
   }
+}
 
-  // if (block.next) {
-  //   // Connect the last block of each substack to the next block
-  //   if (lastBlockId1) {
-  //     addConnection(connections, lastBlockId1, block.next);
-  //   }
-  //   if (lastBlockId2) {
-  //     addConnection(connections, lastBlockId2, block.next);
-  //   }
-  //   // Also connect the if block itself to the next block for the 'no' path in a simple if
-  //   if (block.opcode === "control_if") {
-  //     addConnection(connections, blockId, block.next, "no");
-  //   }
-  //   traverseBlocks(
-  //     block.next,
-  //     blocks,
-  //     nodes,
-  //     connections,
-  //     nodeCounter,
-  //     exitTarget,
-  //     currentLevel,
-  //     currentSequence + (block.opcode === "control_if_else" ? 2 : 1)
-  //   );
-  // } else if (exitTarget) {
-  //   // If there's no next block but there's an exit target, connect to it
-  //   if (lastBlockId1) {
-  //     addConnection(connections, lastBlockId1, exitTarget);
-  //   }
-  //   if (lastBlockId2) {
-  //     addConnection(connections, lastBlockId2, exitTarget);
-  //   }
-  //   // For a simple if, also connect the if block itself to the exit target for the 'no' path
-  //   if (block.opcode === "control_if") {
-  //     addConnection(connections, blockId, exitTarget, "no");
-  //   }
-  // }
+function isLoopBlock(block) {
+  return ["control_repeat", "control_repeat_until"].includes(block.opcode);
 }
 
 function handleLoopBlocks(
@@ -576,32 +651,6 @@ function handleLoopBlocks(
     addConnection(connections, blockId, blockId, "no");
   }
 
-  // let target = block.next || exitTarget;
-  // if (target && blockId !== target) {
-  //   let nextBlock = blocks[target];
-  //   if (nextBlock && nextBlock.opcode === "control_forever") {
-  //     let foreverSubstackId = nextBlock.inputs.SUBSTACK
-  //       ? nextBlock.inputs.SUBSTACK[1]
-  //       : null;
-  //     if (foreverSubstackId && blocks[foreverSubstackId]) {
-  //       addConnection(connections, blockId, foreverSubstackId, "yes");
-  //     } else {
-  //       addConnection(connections, blockId, blockId);
-  //     }
-  //   } else {
-  //     addConnection(connections, blockId, target, "yes");
-  //   }
-  //   traverseBlocks(
-  //     target,
-  //     blocks,
-  //     nodes,
-  //     connections,
-  //     nodeCounter,
-  //     exitTarget,
-  //     currentLevel,
-  //     currentSequence + 1
-  //   );
-  // }
   let nextTarget = block.next || exitTarget || foreverStartId;
   if (nextTarget && blockId !== nextTarget) {
     let nextBlock = blocks[nextTarget];
@@ -794,7 +843,7 @@ function getPreferredDirections(fromNodeObj, toNodeObj) {
   // Nested node to parent node
   if (fromNodeObj.level > toNodeObj.level) {
     if (fromNodeObj.sequence < toNodeObj.sequence) {
-      return ["left", "bottom"];
+      return ["bottom", "left"];
     } else if (fromNodeObj.sequence > toNodeObj.sequence) {
       return ["left", "top"];
     } else {
