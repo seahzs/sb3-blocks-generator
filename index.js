@@ -403,133 +403,38 @@ function handleIfBlocks(
         nodes,
         connections,
         nodeCounter,
-        block.next || exitTarget,
-        currentLevel + 1,
-        currentSequence
-      );
-    }
-  } else {
-    let target = block.next || exitTarget;
-    if (target && blockId !== target) {
-      let nextBlock = blocks[target];
-      if (nextBlock && nextBlock.opcode === "control_forever") {
-        let foreverSubstackId = nextBlock.inputs.SUBSTACK
-          ? nextBlock.inputs.SUBSTACK[1]
-          : null;
-        if (foreverSubstackId && blocks[foreverSubstackId]) {
-          addConnection(connections, blockId, foreverSubstackId, "yes");
-        } else {
-          addConnection(connections, blockId, blockId);
-        }
-      } else {
-        addConnection(connections, blockId, target, "yes");
-      }
-      traverseBlocks(
-        target,
-        blocks,
-        nodes,
-        connections,
-        nodeCounter,
-        exitTarget,
+        null,
         currentLevel + 1,
         currentSequence
       );
     }
   }
 
-  if (block.opcode === "control_if_else") {
-    if (substack2Id) {
-      let substack2Block = blocks[substack2Id];
-      if (substack2Block && substack2Block.opcode === "control_forever") {
-        let foreverSubstackId = substack2Block.inputs.SUBSTACK
-          ? substack2Block.inputs.SUBSTACK[1]
-          : null;
-        if (foreverSubstackId && blocks[foreverSubstackId]) {
-          addConnection(connections, blockId, foreverSubstackId, "no");
-          traverseBlocks(
-            substack2Id,
-            blocks,
-            nodes,
-            connections,
-            nodeCounter,
-            null,
-            currentLevel,
-            // currentSequence + 2
-            currentSequence + 1
-          );
-        } else {
-          addConnection(connections, blockId, blockId, "no");
-        }
-      } else {
-        addConnection(connections, blockId, substack2Id, "no");
-        traverseBlocks(
-          substack2Id,
-          blocks,
-          nodes,
-          connections,
-          nodeCounter,
-          block.next || exitTarget,
-          currentLevel,
-          // currentSequence + 2
-          currentSequence + 1
-        );
-      }
-    } else {
-      let target = block.next || exitTarget;
-      if (target && blockId !== target) {
-        let nextBlock = blocks[target];
-        if (nextBlock && nextBlock.opcode === "control_forever") {
-          let foreverSubstackId = nextBlock.inputs.SUBSTACK
-            ? nextBlock.inputs.SUBSTACK[1]
-            : null;
-          if (foreverSubstackId && blocks[foreverSubstackId]) {
-            addConnection(connections, blockId, foreverSubstackId, "no");
-          } else {
-            addConnection(connections, blockId, blockId);
-          }
-        } else {
-          addConnection(connections, blockId, target, "no");
-        }
-        traverseBlocks(
-          target,
-          blocks,
-          nodes,
-          connections,
-          nodeCounter,
-          exitTarget,
-          currentLevel,
-          // currentSequence + 2
-          currentSequence + 1
-        );
-      }
-    }
-  } else {
-    let target = block.next || exitTarget;
-    if (target && blockId !== target) {
-      let nextBlock = blocks[target];
-      if (nextBlock && nextBlock.opcode === "control_forever") {
-        let foreverSubstackId = nextBlock.inputs.SUBSTACK
-          ? nextBlock.inputs.SUBSTACK[1]
-          : null;
-        if (foreverSubstackId && blocks[foreverSubstackId]) {
-          addConnection(connections, blockId, foreverSubstackId, "no");
-        } else {
-          addConnection(connections, blockId, blockId);
-        }
-      } else {
-        addConnection(connections, blockId, target, "no");
-      }
-      traverseBlocks(
-        target,
-        blocks,
-        nodes,
-        connections,
-        nodeCounter,
-        exitTarget,
-        currentLevel,
-        currentSequence + 1
-      );
-    }
+  if (block.opcode === "control_if_else" && substack2Id) {
+    addConnection(connections, blockId, substack2Id, "no");
+    traverseBlocks(
+      substack2Id,
+      blocks,
+      nodes,
+      connections,
+      nodeCounter,
+      null,
+      currentLevel + 1,
+      currentSequence + 1
+    );
+  }
+
+  if (block.next) {
+    traverseBlocks(
+      block.next,
+      blocks,
+      nodes,
+      connections,
+      nodeCounter,
+      exitTarget,
+      currentLevel,
+      currentSequence + (block.opcode === "control_if_else" ? 2 : 1)
+    );
   }
 }
 
@@ -650,18 +555,6 @@ function handleOtherBlocks(
       exitTarget,
       currentLevel,
       currentSequence + 1
-    );
-  } else if (exitTarget && blockId !== exitTarget) {
-    addConnection(connections, blockId, exitTarget);
-    traverseBlocks(
-      exitTarget,
-      blocks,
-      nodes,
-      connections,
-      nodeCounter,
-      null,
-      currentLevel,
-      currentSequence
     );
   }
 }
