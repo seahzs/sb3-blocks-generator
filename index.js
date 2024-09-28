@@ -401,7 +401,7 @@ function handleForeverBlock(
       nodeCounter,
       null,
       currentLevel,
-      currentSequence + 1,
+      currentSequence,
       substackId
     );
     // let lastBlockId = findLastBlockInSubstack(substackId, blocks);
