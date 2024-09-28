@@ -472,6 +472,15 @@ function handleIfBlocks(
         foreverStartId
       );
     }
+  } else {
+    let nextTarget = block.next || exitTarget;
+    // If 'if' branch is empty, connect directly to next target
+    if (nextTarget) {
+      addConnection(connections, blockId, nextTarget, "yes");
+    } else if (foreverStartId) {
+      // If there's no next block but we're in a forever loop, connect back to the start
+      addConnection(connections, blockId, foreverStartId, "yes");
+    }
   }
 
   if (block.opcode === "control_if_else" && substack2Id) {
@@ -510,6 +519,15 @@ function handleIfBlocks(
         currentSequence + 1,
         foreverStartId
       );
+    }
+  } else {
+    let nextTarget = block.next || exitTarget;
+    // If 'if' branch is empty, connect directly to next target
+    if (nextTarget) {
+      addConnection(connections, blockId, nextTarget, "no");
+    } else if (foreverStartId) {
+      // If there's no next block but we're in a forever loop, connect back to the start
+      addConnection(connections, blockId, foreverStartId, "no");
     }
   }
 
