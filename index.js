@@ -392,7 +392,7 @@ function handleForeverBlock(
 ) {
   let substackId = block.inputs.SUBSTACK ? block.inputs.SUBSTACK[1] : null;
   if (substackId) {
-    addConnection(connections, blockId, substackId);
+    // addConnection(connections, blockId, substackId);
     traverseBlocks(
       substackId,
       blocks,
@@ -412,10 +412,12 @@ function handleForeverBlock(
     //   connections,
     //   substackId
     // );
-  } else {
-    // Empty forever loop, connect back to itself
-    addConnection(connections, blockId, blockId);
   }
+  return;
+  // else {
+  //   // Empty forever loop, connect back to itself
+  //   addConnection(connections, blockId, blockId);
+  // }
 }
 
 function handleIfBlocks(
@@ -847,9 +849,6 @@ function getPreferredDirections(fromNodeObj, toNodeObj) {
     if (fromNodeObj.sequence < toNodeObj.sequence) {
       return ["bottom", "left"];
     } else if (fromNodeObj.sequence > toNodeObj.sequence) {
-      console.log("ffsfromNodeObj", fromNodeObj);
-      console.log("ffstoNodeObj", toNodeObj);
-
       return ["left", "top"];
     } else {
       return ["top", "bottom", "left"];
