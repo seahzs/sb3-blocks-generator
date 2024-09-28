@@ -463,7 +463,8 @@ function handleIfBlocks(
         nodes,
         connections,
         nodeCounter,
-        null,
+        // null,
+        block.next || exitTarget,
         currentLevel + 1,
         currentSequence,
         foreverStartId
@@ -501,7 +502,8 @@ function handleIfBlocks(
         nodes,
         connections,
         nodeCounter,
-        null,
+        // null,
+        block.next || exitTarget,
         currentLevel,
         currentSequence + 1,
         foreverStartId
@@ -517,7 +519,7 @@ function handleIfBlocks(
     ? findLastBlockInSubstack(substack2Id, blocks)
     : null;
 
-  let nextTarget = block.next || exitTarget || foreverStartId;
+  let nextTarget = block.next || exitTarget;
 
   if (nextTarget) {
     let nextBlock = blocks[nextTarget];
@@ -651,7 +653,7 @@ function handleLoopBlocks(
     addConnection(connections, blockId, blockId, "no");
   }
 
-  let nextTarget = block.next || exitTarget || foreverStartId;
+  let nextTarget = block.next || exitTarget;
   if (nextTarget && blockId !== nextTarget) {
     let nextBlock = blocks[nextTarget];
     if (nextBlock && nextBlock.opcode === "control_forever") {
@@ -845,6 +847,9 @@ function getPreferredDirections(fromNodeObj, toNodeObj) {
     if (fromNodeObj.sequence < toNodeObj.sequence) {
       return ["bottom", "left"];
     } else if (fromNodeObj.sequence > toNodeObj.sequence) {
+      console.log("ffsfromNodeObj", fromNodeObj);
+      console.log("ffstoNodeObj", toNodeObj);
+
       return ["left", "top"];
     } else {
       return ["top", "bottom", "left"];
@@ -1022,6 +1027,10 @@ function getBlockLabel(block, blocks) {
       return "If on edge, bounce";
     case "motion_setrotationstyle":
       return `Set rotation style "${getFieldValue(block, "STYLE")}"`;
+    case "motion_changexby":
+      return `Change x by ${getInputValue(block, "DX", blocks)}`;
+    case "motion_changeyby":
+      return `Change y by ${getInputValue(block, "DY", blocks)}`;
     case "motion_setx":
       return `Set x to ${getInputValue(block, "X", blocks)}`;
     case "motion_sety":
