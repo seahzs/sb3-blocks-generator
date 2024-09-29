@@ -243,7 +243,43 @@ function generateFlowchartDefinition(hatKey, blocks) {
   let connections = [];
   let nodeCounter = { value: 1 };
 
-  traverseBlocks(hatKey, blocks, nodes, connections, nodeCounter);
+  // Add Start node
+  let startNodeId = "start";
+  nodes[startNodeId] = {
+    id: "node" + nodeCounter.value++,
+    label: "Start",
+    type: "terminator",
+    level: 0,
+    sequence: 0,
+  };
+
+  if (hatKey) {
+    // Connect Start to the first block
+    addConnection(connections, startNodeId, hatKey);
+
+    // Traverse the blocks
+    traverseBlocks(
+      hatKey,
+      blocks,
+      nodes,
+      connections,
+      nodeCounter,
+      null,
+      0,
+      1,
+      null
+    );
+  }
+
+  // Add End node
+  let endNodeId = "end";
+  nodes[endNodeId] = {
+    id: "node" + nodeCounter.value++,
+    label: "End",
+    type: "terminator",
+    level: 0,
+    sequence: Object.keys(nodes).length,
+  };
 
   return buildFlowchartDefinition(nodes, connections);
 }
@@ -334,6 +370,11 @@ function traverseBlocks(
       foreverStartId
     );
   }
+
+  // // Check for program termination
+  // if (!block.next && !exitTarget && !foreverStartId) {
+  //   addConnection(connections, blockId, "end");
+  // }
 }
 
 function isLoopNode(block) {
@@ -480,6 +521,8 @@ function handleIfBlocks(
     } else if (foreverStartId) {
       // If there's no next block but we're in a forever loop, connect back to the start
       addConnection(connections, blockId, foreverStartId, "yes");
+    } else {
+      addConnection(connections, blockId, "end", "yes");
     }
   }
 
@@ -528,6 +571,8 @@ function handleIfBlocks(
     } else if (foreverStartId) {
       // If there's no next block but we're in a forever loop, connect back to the start
       addConnection(connections, blockId, foreverStartId, "no");
+    } else {
+      addConnection(connections, blockId, "end", "no");
     }
   }
 
@@ -609,6 +654,23 @@ function handleIfBlocks(
     }
     if (block.opcode === "control_if")
       addConnection(connections, blockId, foreverStartId, "no");
+  } else {
+    if (lastBlockId1) {
+      if (isLoopBlock(blocks[lastBlockId1])) {
+        addConnection(connections, lastBlockId1, "end", "yes");
+      } else {
+        addConnection(connections, lastBlockId1, "end");
+      }
+    }
+    if (lastBlockId2) {
+      if (isLoopBlock(blocks[lastBlockId2])) {
+        addConnection(connections, lastBlockId2, "end", "yes");
+      } else {
+        addConnection(connections, lastBlockId2, "end");
+      }
+    }
+    if (block.opcode === "control_if")
+      addConnection(connections, blockId, "end", "no");
   }
 }
 
@@ -703,6 +765,8 @@ function handleLoopBlocks(
     }
   } else if (foreverStartId) {
     addConnection(connections, blockId, foreverStartId, "yes");
+  } else {
+    addConnection(connections, blockId, "end", "yes");
   }
 }
 
@@ -749,6 +813,9 @@ function handleOtherBlocks(
   } else if (foreverStartId) {
     // If there's no next block but we're in a forever loop, connect back to the start
     addConnection(connections, blockId, foreverStartId);
+  } else {
+    // If there's no next block, connect to the end
+    addConnection(connections, blockId, "end");
   }
 }
 
