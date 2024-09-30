@@ -131,12 +131,12 @@ function generateScratchblocks() {
   flowchartDefinitions = hatBlocks.map((hatKey) =>
     generateFlowchartDefinition(hatKey, target.blocks)
   );
-  renderScratchBlocksAndFlowcharts();
+  renderScratchBlocksAndFlowcharts(hatBlocks, target.blocks);
 
   console.log("target.blocks", target.blocks);
 }
 
-async function renderScratchBlocksAndFlowcharts() {
+async function renderScratchBlocksAndFlowcharts(hatBlocks, blocks) {
   const container = document.getElementById("scratchBlocksAndFlowcharts");
   container.innerHTML = ""; // Clear previous content
   viewers = [];
@@ -147,60 +147,62 @@ async function renderScratchBlocksAndFlowcharts() {
     scale: blockSize.value,
   };
 
-  const blocks = scratchBlocksCode.split("\n\n");
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i].trim();
-    if (block) {
-      const blockFlowchartContainer = document.createElement("div");
-      blockFlowchartContainer.className = "block-flowchart-container";
+  for (let i = 0; i < hatBlocks.length; i++) {
+    const hatKey = hatBlocks[i];
+    const script = parseSB3Blocks.toScratchblocks(hatKey, blocks, "en", {
+      tab: " ".repeat(4),
+      variableStyle: "as-needed",
+    });
 
-      // Scratch Block
-      const blockContainer = document.createElement("div");
-      blockContainer.className = "block-container";
+    const blockFlowchartContainer = document.createElement("div");
+    blockFlowchartContainer.className = "block-flowchart-container";
 
-      const viewer = scratchblocks.newView(
-        scratchblocks.parse(block, renderOpts),
-        renderOpts
-      );
-      await viewer.render();
+    // Scratch Block
+    const blockContainer = document.createElement("div");
+    blockContainer.className = "block-container";
 
-      const svgStr = viewer.exportSVGString();
-      const svgImg = document.createElement("img");
-      svgImg.src =
-        "data:image/svg+xml;utf8," + svgStr.replace(/[#]/g, encodeURIComponent);
-      blockContainer.appendChild(svgImg);
+    const viewer = scratchblocks.newView(
+      scratchblocks.parse(script, renderOpts),
+      renderOpts
+    );
+    await viewer.render();
 
-      const canvas = document.createElement("canvas");
-      blockContainer.appendChild(canvas);
+    const svgStr = viewer.exportSVGString();
+    const svgImg = document.createElement("img");
+    svgImg.src =
+      "data:image/svg+xml;utf8," + svgStr.replace(/[#]/g, encodeURIComponent);
+    blockContainer.appendChild(svgImg);
 
-      // Create a container for Scratch block buttons
-      const blockButtonsContainer = document.createElement("div");
-      blockButtonsContainer.style.marginTop = "10px";
-      blockButtonsContainer.style.textAlign = "center";
+    const canvas = document.createElement("canvas");
+    blockContainer.appendChild(canvas);
 
-      const downloadSvgBtn = document.createElement("button");
-      downloadSvgBtn.textContent = "Download SVG";
-      downloadSvgBtn.onclick = () => downloadSvg(svgStr, i);
-      blockButtonsContainer.appendChild(downloadSvgBtn);
+    // Create a container for Scratch block buttons
+    const blockButtonsContainer = document.createElement("div");
+    blockButtonsContainer.style.marginTop = "10px";
+    blockButtonsContainer.style.textAlign = "center";
 
-      const downloadPngBtn = document.createElement("button");
-      downloadPngBtn.textContent = "Download PNG";
-      downloadPngBtn.onclick = () => downloadPng(canvas, i);
-      blockButtonsContainer.appendChild(downloadPngBtn);
+    const downloadSvgBtn = document.createElement("button");
+    downloadSvgBtn.textContent = "Download SVG";
+    downloadSvgBtn.onclick = () => downloadSvg(svgStr, i);
+    blockButtonsContainer.appendChild(downloadSvgBtn);
 
-      blockContainer.appendChild(blockButtonsContainer);
+    const downloadPngBtn = document.createElement("button");
+    downloadPngBtn.textContent = "Download PNG";
+    downloadPngBtn.onclick = () => downloadPng(canvas, i);
+    blockButtonsContainer.appendChild(downloadPngBtn);
 
-      blockFlowchartContainer.appendChild(blockContainer);
-      viewers.push({ viewer, svgImg, canvas });
+    blockContainer.appendChild(blockButtonsContainer);
 
-      // Flowchart
-      const flowchartContainer = document.createElement("div");
-      flowchartContainer.className = "flowchart-container";
-      flowchartContainer.id = `flowchart${i}`;
-      blockFlowchartContainer.appendChild(flowchartContainer);
+    blockFlowchartContainer.appendChild(blockContainer);
+    viewers.push({ viewer, svgImg, canvas });
 
-      container.appendChild(blockFlowchartContainer);
-    }
+    // Flowchart
+    const flowchartContainer = document.createElement("div");
+    flowchartContainer.className = "flowchart-container";
+    flowchartContainer.id = `flowchart${i}`;
+    blockFlowchartContainer.appendChild(flowchartContainer);
+
+    container.appendChild(blockFlowchartContainer);
   }
 
   await renderAllPNGs();
