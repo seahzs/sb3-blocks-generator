@@ -12,6 +12,8 @@ let projectData = {};
 let scratchblocksCode = "";
 let viewers = [];
 let flowchartDefinitions = []; // Array to store flowchart definitions
+let hatBlocks = []; // Array to store hat blocks
+let blocks = {}; // Object to store all blocks
 
 const HAT_BLOCKS = [
   "event_whenflagclicked",
@@ -100,7 +102,7 @@ function hideContainers(toHide) {
 }
 
 function handleBlockSizeChange() {
-  renderScratchBlocksAndFlowcharts();
+  renderScratchBlocksAndFlowcharts(hatBlocks, blocks);
 }
 
 // Scratchblocks generation
@@ -125,13 +127,14 @@ function generateScratchblocks() {
   }
 
   hideContainers(false);
-  const hatBlocks = findHatBlocks(target.blocks);
-  scratchBlocksCode = generateScratchblocksCode(hatBlocks, target.blocks);
+  blocks = target.blocks;
+  hatBlocks = findHatBlocks(blocks);
+  scratchBlocksCode = generateScratchblocksCode(hatBlocks, blocks);
   textAreaInner.textContent = scratchBlocksCode;
   flowchartDefinitions = hatBlocks.map((hatKey) =>
-    generateFlowchartDefinition(hatKey, target.blocks)
+    generateFlowchartDefinition(hatKey, blocks)
   );
-  renderScratchBlocksAndFlowcharts(hatBlocks, target.blocks);
+  renderScratchBlocksAndFlowcharts(hatBlocks, blocks);
 
   console.log("target.blocks", target.blocks);
 }
@@ -921,10 +924,15 @@ function buildFlowchartDefinition(nodes, connections) {
   console.log("nodes", nodes);
 
   const maxLineLengths = {
-    start: 40,
-    end: 40,
-    operation: 30,
-    condition: 12,
+    // start: 40,
+    // end: 40,
+    // operation: 30,
+    // condition: 12,
+    // inputoutput: 18,
+    start: 19,
+    end: 19,
+    operation: 19,
+    condition: 13,
     inputoutput: 18,
   };
 
@@ -934,7 +942,7 @@ function buildFlowchartDefinition(nodes, connections) {
     let nodeType = getAdjustedNodeType(node);
 
     const maxLineLength = maxLineLengths[nodeType] || 30;
-    let wrappedLabel = wrapLabel(node.label, maxLineLength);
+    let wrappedLabel = wrapLabel(node.label, maxLineLength, nodeType);
 
     nodeDefs += `${node.id}=>${nodeType}: ${wrappedLabel}\n`;
   }
@@ -1053,7 +1061,7 @@ function getDirection(
   return "bottom";
 }
 
-function wrapLabel(label, maxLineLength) {
+function wrapLabel(label, maxLineLength, nodeType) {
   const words = label.split(" ");
   let lines = [];
   let currentLine = "";
@@ -1065,19 +1073,39 @@ function wrapLabel(label, maxLineLength) {
       currentLine += (currentLine ? " " : "") + word;
     } else {
       if (currentLine) {
-        lines.push(currentLine);
+        lines.push(centerLine(currentLine, maxLineLength));
       }
-      while (word.length > maxLineLength) {
-        lines.push(word.substring(0, maxLineLength));
-        word = word.substring(maxLineLength);
+      if (word.length > maxLineLength) {
+        while (word.length > maxLineLength) {
+          lines.push(
+            centerLine(word.substring(0, maxLineLength), maxLineLength)
+          );
+          word = word.substring(maxLineLength);
+        }
+        currentLine = word;
+      } else {
+        currentLine = word;
       }
-      currentLine = word;
     }
   }
   if (currentLine) {
-    lines.push(currentLine);
+    lines.push(centerLine(currentLine, maxLineLength));
   }
+
   return lines.join("\n");
+}
+
+function centerLine(line, maxLineLength) {
+  const totalPadding = maxLineLength - line.length;
+  const leftPad = Math.floor(totalPadding / 2);
+  const rightPad = totalPadding - leftPad;
+
+  // Use Braille Pattern Blank for both left and right padding
+  const brailleBlank = "\u2800"; // Braille Pattern Blank
+  const leftPadding = brailleBlank.repeat(leftPad);
+  const rightPadding = brailleBlank.repeat(rightPad);
+
+  return leftPadding + line + rightPadding;
 }
 
 // Helper functions
