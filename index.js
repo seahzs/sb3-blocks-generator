@@ -6,14 +6,13 @@ const textContainer = document.getElementById("textContainer");
 const textAreaInner = document.getElementById("textAreaInner");
 const blocksContainer = document.getElementById("blocksContainer");
 const blockSize = document.getElementById("blockSize");
-const svgImg = document.getElementById("svgImage");
-const canvas = document.getElementById("imageCanvas");
+
 let sb3File = {};
 let projectData = {};
 let scratchblocksCode = "";
-let viewer = {};
+let viewers = [];
 let flowchartDefinitions = []; // Array to store flowchart definitions
-// let hatBlocks = [];
+
 const HAT_BLOCKS = [
   "event_whenflagclicked",
   "event_whenkeypressed",
@@ -53,13 +52,6 @@ new ClipboardJS("#copyText");
 document
   .getElementById("downloadText")
   .addEventListener("click", generateTxtFileDownload);
-document
-  .getElementById("downloadSvg")
-  .addEventListener("click", generateSvgFileDownload);
-document.getElementById("generatePng").addEventListener("click", renderPNG);
-document
-  .getElementById("downloadPng")
-  .addEventListener("click", generatePngFileDownload);
 
 // File handling functions
 function handleFileUpload(e) {
@@ -108,8 +100,7 @@ function hideContainers(toHide) {
 }
 
 function handleBlockSizeChange() {
-  renderSvg().then(renderPNG);
-  renderAllFlowcharts();
+  renderScratchBlocksAndFlowcharts();
 }
 
 // Scratchblocks generation
@@ -135,12 +126,136 @@ function generateScratchblocks() {
 
   hideContainers(false);
   const hatBlocks = findHatBlocks(target.blocks);
-  scratchblocksCode = generateScratchblocksCode(hatBlocks, target.blocks);
-  textAreaInner.textContent = scratchblocksCode;
-  renderSvg().then(renderPNG);
-  generateAndRenderFlowcharts(hatBlocks, target.blocks);
+  scratchBlocksCode = generateScratchblocksCode(hatBlocks, target.blocks);
+  textAreaInner.textContent = scratchBlocksCode;
+  flowchartDefinitions = hatBlocks.map((hatKey) =>
+    generateFlowchartDefinition(hatKey, target.blocks)
+  );
+  renderScratchBlocksAndFlowcharts();
 
   console.log("target.blocks", target.blocks);
+}
+
+async function renderScratchBlocksAndFlowcharts() {
+  const container = document.getElementById("scratchBlocksAndFlowcharts");
+  container.innerHTML = ""; // Clear previous content
+  viewers = [];
+
+  const renderOpts = {
+    style: "scratch3",
+    languages: ["en"],
+    scale: blockSize.value,
+  };
+
+  const blocks = scratchBlocksCode.split("\n\n");
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i].trim();
+    if (block) {
+      const blockFlowchartContainer = document.createElement("div");
+      blockFlowchartContainer.className = "block-flowchart-container";
+
+      // Scratch Block
+      const blockContainer = document.createElement("div");
+      blockContainer.className = "block-container";
+
+      const viewer = scratchblocks.newView(
+        scratchblocks.parse(block, renderOpts),
+        renderOpts
+      );
+      await viewer.render();
+
+      const svgStr = viewer.exportSVGString();
+      const svgImg = document.createElement("img");
+      svgImg.src =
+        "data:image/svg+xml;utf8," + svgStr.replace(/[#]/g, encodeURIComponent);
+      blockContainer.appendChild(svgImg);
+
+      const canvas = document.createElement("canvas");
+      blockContainer.appendChild(canvas);
+
+      // Create a container for Scratch block buttons
+      const blockButtonsContainer = document.createElement("div");
+      blockButtonsContainer.style.marginTop = "10px";
+      blockButtonsContainer.style.textAlign = "center";
+
+      const downloadSvgBtn = document.createElement("button");
+      downloadSvgBtn.textContent = "Download SVG";
+      downloadSvgBtn.onclick = () => downloadSvg(svgStr, i);
+      blockButtonsContainer.appendChild(downloadSvgBtn);
+
+      const downloadPngBtn = document.createElement("button");
+      downloadPngBtn.textContent = "Download PNG";
+      downloadPngBtn.onclick = () => downloadPng(canvas, i);
+      blockButtonsContainer.appendChild(downloadPngBtn);
+
+      blockContainer.appendChild(blockButtonsContainer);
+
+      blockFlowchartContainer.appendChild(blockContainer);
+      viewers.push({ viewer, svgImg, canvas });
+
+      // Flowchart
+      const flowchartContainer = document.createElement("div");
+      flowchartContainer.className = "flowchart-container";
+      flowchartContainer.id = `flowchart${i}`;
+      blockFlowchartContainer.appendChild(flowchartContainer);
+
+      container.appendChild(blockFlowchartContainer);
+    }
+  }
+
+  await renderAllPNGs();
+  renderAllFlowcharts();
+}
+
+async function renderAllPNGs() {
+  for (let i = 0; i < viewers.length; i++) {
+    await renderPNG(i);
+  }
+}
+
+async function renderPNG(index) {
+  const { viewer, svgImg, canvas } = viewers[index];
+  canvas.width = viewer.width * blockSize.value;
+  canvas.height = viewer.height * blockSize.value;
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+
+  return new Promise((resolve) => {
+    svgImg.onload = () => {
+      context.drawImage(svgImg, 0, 0);
+      resolve();
+    };
+    // In case the image is already loaded
+    if (svgImg.complete) {
+      context.drawImage(svgImg, 0, 0);
+      resolve();
+    }
+  });
+}
+
+function downloadSvg(svgStr, index) {
+  const fileName = `${getFileNameBase()}_block${index + 1}.svg`;
+  const blob = new Blob([svgStr], { type: "image/svg+xml" });
+  const url = URL.createObjectURL(blob);
+  triggerDownload(url, fileName, "image/svg+xml");
+  URL.revokeObjectURL(url);
+}
+
+function downloadPng(canvas, index) {
+  const fileName = `${getFileNameBase()}_block${index + 1}.png`;
+  canvas.toBlob((blob) => {
+    if (blob) {
+      const url = URL.createObjectURL(blob);
+      triggerDownload(url, fileName, "image/png");
+      URL.revokeObjectURL(url);
+    } else {
+      console.error("Failed to create blob for PNG download");
+    }
+  }, "image/png");
+}
+
+function getFileNameBase() {
+  return sb3File.name.slice(0, -4) + "_" + spriteList.value.replace("_", "");
 }
 
 function findHatBlocks(blocks) {
@@ -161,37 +276,7 @@ function generateScratchblocksCode(hatBlocks, blocks) {
     .join("\n\n");
 }
 
-// SVG and PNG rendering
-async function renderSvg() {
-  const renderOpts = {
-    style: "scratch3",
-    languages: ["en"],
-    scale: blockSize.value,
-  };
-  viewer = scratchblocks.newView(
-    scratchblocks.parse(scratchblocksCode, renderOpts),
-    renderOpts
-  );
-  await viewer.render();
-  const svgStr = viewer.exportSVGString();
-  svgImg.src =
-    "data:image/svg+xml;utf8," + svgStr.replace(/[#]/g, encodeURIComponent);
-}
-
-async function renderPNG() {
-  canvas.width = viewer.width * blockSize.value;
-  canvas.height = viewer.height * blockSize.value;
-  const context = await canvas.getContext("2d");
-  await context.save();
-  await context.drawImage(svgImg, 0, 0);
-  const imgURL = await canvas.toDataURL("image/png");
-  return imgURL;
-}
-
 function renderAllFlowcharts() {
-  const flowchartContainer = document.getElementById("flowchartContainer");
-  flowchartContainer.innerHTML = ""; // Clear previous flowcharts
-
   flowchartDefinitions.forEach((definition, index) => {
     renderFlowchart(definition, index);
   });
@@ -205,18 +290,6 @@ function generateTxtFileDownload() {
   triggerDownload(objectURL, fileName, "text/plain");
 }
 
-function generateSvgFileDownload() {
-  const fileName = getFileName(".svg");
-  triggerDownload(svgImg.src, fileName, "image/svg+xml");
-}
-
-function generatePngFileDownload() {
-  const fileName = getFileName(".png");
-  renderPNG().then((imgURL) => {
-    triggerDownload(imgURL, fileName, "image/png");
-  });
-}
-
 function getFileName(extension) {
   return (
     sb3File.name.slice(0, -4) +
@@ -226,36 +299,14 @@ function getFileName(extension) {
   );
 }
 
-function triggerDownload(objectURL, fileName, mimeType) {
+function triggerDownload(url, fileName, mimeType) {
   const downloadLink = document.createElement("a");
-  downloadLink.href = objectURL;
+  downloadLink.href = url;
   downloadLink.download = fileName;
   downloadLink.type = mimeType;
   document.body.appendChild(downloadLink);
   downloadLink.click();
-  downloadLink.remove();
-  URL.revokeObjectURL(objectURL);
-}
-
-// Flowchart generation and rendering
-function generateAndRenderFlowcharts(hatBlocks, blocks) {
-  const flowchartContainer = document.getElementById("flowchartContainer");
-  flowchartContainer.innerHTML = ""; // Clear previous flowcharts
-
-  console.log(blocks);
-
-  flowchartDefinitions = hatBlocks.map((hatKey) =>
-    generateFlowchartDefinition(hatKey, blocks)
-  );
-
-  flowchartDefinitions.forEach((definition, index) => {
-    renderFlowchart(definition, index);
-  });
-
-  // hatBlocks.forEach((hatKey, index) => {
-  //   const flowchartDefinition = generateFlowchartDefinition(hatKey, blocks);
-  //   renderFlowchart(flowchartDefinition, index);
-  // });
+  document.body.removeChild(downloadLink);
 }
 
 function generateFlowchartDefinition(hatKey, blocks) {
@@ -1540,11 +1591,8 @@ function getProcedureName(block) {
 }
 
 function renderFlowchart(definition, index) {
-  const flowchartContainer = document.getElementById("flowchartContainer");
-  const subContainerId = "flowchartSubContainer" + index;
-  const subContainer = document.createElement("div");
-  subContainer.id = subContainerId;
-  subContainer.style.marginBottom = "20px";
+  const flowchartContainer = document.getElementById(`flowchart${index}`);
+  flowchartContainer.innerHTML = ""; // Clear previous flowchart
 
   const downloadButtons = document.createElement("div");
   downloadButtons.className = "flowchart-buttons";
@@ -1552,25 +1600,24 @@ function renderFlowchart(definition, index) {
   const downloadSvgButton = document.createElement("button");
   downloadSvgButton.textContent = "Download Flowchart SVG";
   downloadSvgButton.onclick = () => {
-    downloadFlowchartSvg(subContainerId, index);
+    downloadFlowchartSvg(`flowchart${index}`, index);
   };
 
   const downloadPngButton = document.createElement("button");
   downloadPngButton.textContent = "Download Flowchart PNG";
   downloadPngButton.onclick = () => {
-    downloadFlowchartPng(subContainerId, index);
+    downloadFlowchartPng(`flowchart${index}`, index);
   };
 
   downloadButtons.appendChild(downloadSvgButton);
   downloadButtons.appendChild(downloadPngButton);
-  subContainer.appendChild(downloadButtons);
-  flowchartContainer.appendChild(subContainer);
+  flowchartContainer.appendChild(downloadButtons);
 
   try {
     var chart = flowchart.parse(definition);
     console.log(definition);
 
-    chart.drawSVG(subContainerId, {
+    chart.drawSVG(`flowchart${index}`, {
       "line-width": 2,
       "line-length": 80,
       "font-size": 13,
@@ -1613,6 +1660,19 @@ function renderFlowchart(definition, index) {
         invalid: { "line-color": "red" },
       },
     });
+
+    // Add padding to the SVG
+    const svg = flowchartContainer.querySelector("svg");
+    if (svg) {
+      const padding = 20;
+      const viewBox = svg.getAttribute("viewBox").split(" ").map(Number);
+      svg.setAttribute(
+        "viewBox",
+        `${viewBox[0] - padding} ${viewBox[1] - padding} ${
+          viewBox[2] + padding * 2
+        } ${viewBox[3] + padding * 2}`
+      );
+    }
   } catch (e) {
     console.error("Error rendering flowchart:", e);
   }
@@ -1636,36 +1696,28 @@ function downloadFlowchartSvg(containerId, index) {
 }
 
 function downloadFlowchartPng(containerId, index) {
-  const svgElement = document.getElementById(containerId).querySelector("svg");
-  if (svgElement) {
-    const canvas = document.createElement("canvas");
-    const bbox = svgElement.getBBox();
-    canvas.width = bbox.width;
-    canvas.height = bbox.height;
-    const ctx = canvas.getContext("2d");
-
-    const img = new Image();
-    const serializer = new XMLSerializer();
-    const svgString = serializer.serializeToString(svgElement);
-    const svgData =
-      "data:image/svg+xml;base64," +
-      btoa(unescape(encodeURIComponent(svgString)));
-
-    img.onload = function () {
-      ctx.drawImage(img, 0, 0);
-      canvas.toBlob(function (blob) {
-        const objectURL = URL.createObjectURL(blob);
-        const fileName = `${sb3File.name.slice(
-          0,
-          -4
-        )}_${spriteList.value.replace("_", "")}_flowchart${index + 1}.png`;
-        triggerDownload(objectURL, fileName, "image/png");
-      });
-    };
-    img.src = svgData;
-  } else {
-    alert("Flowchart SVG not found.");
+  const svg = document.getElementById(containerId).querySelector("svg");
+  if (!svg) {
+    console.error("SVG not found");
+    return;
   }
-}
 
-// ... (any remaining helper functions or exports)
+  const svgData = new XMLSerializer().serializeToString(svg);
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  const img = new Image();
+  img.onload = function () {
+    canvas.width = img.width;
+    canvas.height = img.height;
+    ctx.drawImage(img, 0, 0);
+    canvas.toBlob(function (blob) {
+      const url = URL.createObjectURL(blob);
+      const fileName = `${getFileNameBase()}_flowchart${index + 1}.png`;
+      triggerDownload(url, fileName, "image/png");
+      URL.revokeObjectURL(url);
+    });
+  };
+  img.src =
+    "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
+}

@@ -30,7 +30,7 @@
     <title>SB3 to ScratchBlocks Generator</title>
     <style>
       /* New styles for the flowchart section */
-      .flowchart-container {
+      /* .flowchart-container {
         margin-top: 20px;
       }
       .flowchart-wrapper {
@@ -40,6 +40,17 @@
       }
       .flowchart-buttons {
         margin-bottom: 10px;
+      } */
+      .block-flowchart-container {
+        display: flex;
+        margin-bottom: 20px;
+        gap: 20px;
+      }
+      .block-container {
+        flex: 1;
+      }
+      .flowchart-container {
+        flex: 1;
       }
     </style>
   </head>
@@ -91,7 +102,13 @@
         >
       </form>
       <br />
-      <div style="display: flex; gap: 10px; width: 100%">
+      <div id="scratchBlocksAndFlowcharts"></div>
+      <!-- <div id="scratchBlocksImages"></div>
+      <div style="float: left">
+        Flowchart:
+        <div id="flowchartContainer"></div>
+      </div> -->
+      <!-- <div style="display: flex; gap: 10px; width: 100%">
         <div style="float: left">
           <label>SVG Image:&thinsp;</label>
           <button id="downloadSvg">Download SVG File</button>
@@ -106,12 +123,11 @@
           <br />
           <canvas id="imageCanvas"></canvas>
         </div>
-        <!-- Flowchart Section -->
         <div style="float: left">
           <label>Flowchart:&thinsp;</label>
           <div id="flowchartContainer"></div>
         </div>
-      </div>
+      </div> -->
     </div>
   </body>
 </html>
