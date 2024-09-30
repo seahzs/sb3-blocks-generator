@@ -1284,6 +1284,8 @@ function getBlockLabel(block, blocks) {
 
     case "looks_gotofrontback":
       return `Go to ${getFieldValue(block, "FRONT_BACK")} layer`;
+    case "looks_setsizeto":
+      return `Set size to ${getInputValue(block, "SIZE", blocks)}%`;
 
     // Sound blocks
     case "sound_play":
@@ -1344,6 +1346,9 @@ function getBlockLabel(block, blocks) {
       return "Timer";
     case "sensing_resettimer":
       return "Reset timer";
+    case "sensing_setdragmode":
+      // Extract the drag mode from the inputs
+      return `Set Drag Mode to ${getFieldValue(block, "DRAG_MODE", blocks)}`;
 
     // Data blocks
     case "data_setvariableto":
