@@ -12,6 +12,8 @@ let sb3File = {};
 let projectData = {};
 let scratchblocksCode = "";
 let viewer = {};
+let flowchartDefinitions = []; // Array to store flowchart definitions
+// let hatBlocks = [];
 const HAT_BLOCKS = [
   "event_whenflagclicked",
   "event_whenkeypressed",
@@ -107,6 +109,7 @@ function hideContainers(toHide) {
 
 function handleBlockSizeChange() {
   renderSvg().then(renderPNG);
+  renderAllFlowcharts();
 }
 
 // Scratchblocks generation
@@ -185,6 +188,15 @@ async function renderPNG() {
   return imgURL;
 }
 
+function renderAllFlowcharts() {
+  const flowchartContainer = document.getElementById("flowchartContainer");
+  flowchartContainer.innerHTML = ""; // Clear previous flowcharts
+
+  flowchartDefinitions.forEach((definition, index) => {
+    renderFlowchart(definition, index);
+  });
+}
+
 // File download functions
 function generateTxtFileDownload() {
   const fileName = getFileName(".txt");
@@ -232,10 +244,18 @@ function generateAndRenderFlowcharts(hatBlocks, blocks) {
 
   console.log(blocks);
 
-  hatBlocks.forEach((hatKey, index) => {
-    const flowchartDefinition = generateFlowchartDefinition(hatKey, blocks);
-    renderFlowchart(flowchartDefinition, index);
+  flowchartDefinitions = hatBlocks.map((hatKey) =>
+    generateFlowchartDefinition(hatKey, blocks)
+  );
+
+  flowchartDefinitions.forEach((definition, index) => {
+    renderFlowchart(definition, index);
   });
+
+  // hatBlocks.forEach((hatKey, index) => {
+  //   const flowchartDefinition = generateFlowchartDefinition(hatKey, blocks);
+  //   renderFlowchart(flowchartDefinition, index);
+  // });
 }
 
 function generateFlowchartDefinition(hatKey, blocks) {
@@ -1556,7 +1576,7 @@ function renderFlowchart(definition, index) {
       "font-size": 13,
       "yes-text": "Yes",
       "no-text": "No",
-      scale: 1,
+      scale: parseFloat(blockSize.value) || 1,
       symbols: {
         start: {
           "font-color": "black",
