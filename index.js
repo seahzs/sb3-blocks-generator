@@ -929,11 +929,11 @@ function buildFlowchartDefinition(nodes, connections) {
     // operation: 30,
     // condition: 12,
     // inputoutput: 18,
-    start: 19,
-    end: 19,
-    operation: 19,
+    start: 18,
+    end: 18,
+    operation: 18,
     condition: 13,
-    inputoutput: 18,
+    inputoutput: 17,
   };
 
   // Build node definitions
@@ -1062,37 +1062,47 @@ function getDirection(
 }
 
 function wrapLabel(label, maxLineLength, nodeType) {
+  // First, check if the entire label fits within maxLineLength
+  if (label.length <= maxLineLength) {
+    // If it fits, center it
+    return centerLine(label, maxLineLength);
+  } else {
+    // If it doesn't fit, break it into lines without padding
+    return breakIntoLines(label, maxLineLength).join("\n");
+  }
+}
+
+function breakIntoLines(label, maxLineLength) {
   const words = label.split(" ");
-  let lines = [];
+  const lines = [];
   let currentLine = "";
 
-  for (let word of words) {
+  for (const word of words) {
     if (
       (currentLine + (currentLine ? " " : "") + word).length <= maxLineLength
     ) {
       currentLine += (currentLine ? " " : "") + word;
     } else {
       if (currentLine) {
-        lines.push(centerLine(currentLine, maxLineLength));
+        lines.push(currentLine);
       }
       if (word.length > maxLineLength) {
-        while (word.length > maxLineLength) {
-          lines.push(
-            centerLine(word.substring(0, maxLineLength), maxLineLength)
-          );
-          word = word.substring(maxLineLength);
+        // Break long words
+        let remainingWord = word;
+        while (remainingWord.length > maxLineLength) {
+          lines.push(remainingWord.slice(0, maxLineLength));
+          remainingWord = remainingWord.slice(maxLineLength);
         }
-        currentLine = word;
+        currentLine = remainingWord;
       } else {
         currentLine = word;
       }
     }
   }
   if (currentLine) {
-    lines.push(centerLine(currentLine, maxLineLength));
+    lines.push(currentLine);
   }
-
-  return lines.join("\n");
+  return lines;
 }
 
 function centerLine(line, maxLineLength) {
