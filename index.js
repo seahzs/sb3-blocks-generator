@@ -1005,7 +1005,7 @@ function getPreferredDirections(fromNodeObj, toNodeObj) {
   // Nested node to parent node
   if (fromNodeObj.level > toNodeObj.level) {
     if (fromNodeObj.sequence < toNodeObj.sequence) {
-      return ["bottom", "left"];
+      return ["right", "bottom", "left"];
     } else if (fromNodeObj.sequence > toNodeObj.sequence) {
       return ["right", "left"];
     } else {
