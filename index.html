@@ -30,17 +30,6 @@
     <title>SB3 to ScratchBlocks Generator</title>
     <style>
       /* New styles for the flowchart section */
-      /* .flowchart-container {
-        margin-top: 20px;
-      }
-      .flowchart-wrapper {
-        display: flex;
-        flex-direction: column;
-        margin-bottom: 20px;
-      }
-      .flowchart-buttons {
-        margin-bottom: 10px;
-      } */
       .block-flowchart-container {
         display: flex;
         margin-bottom: 20px;
@@ -52,12 +41,27 @@
       .flowchart-container {
         flex: 1;
       }
+      .block-flowchart-container {
+        display: flex;
+        margin-bottom: 20px;
+      }
+      .block-container,
+      .flowchart-container {
+        flex: 1;
+      }
+      .download-buttons {
+        margin-bottom: 10px;
+      }
+      .download-buttons button {
+        margin-right: 10px;
+      }
     </style>
   </head>
 
   <body>
     <h3>
-      Generate Scratchblocks Text/Blocks from Scratch 3.0 Project SB3 File
+      Generate Scratchblocks Text/Blocks/Flowcharts from Scratch 3.0 Project SB3
+      File
     </h3>
     <div>
       <label>① SB3 File:&thinsp;</label>
@@ -103,31 +107,6 @@
       </form>
       <br />
       <div id="scratchBlocksAndFlowcharts"></div>
-      <!-- <div id="scratchBlocksImages"></div>
-      <div style="float: left">
-        Flowchart:
-        <div id="flowchartContainer"></div>
-      </div> -->
-      <!-- <div style="display: flex; gap: 10px; width: 100%">
-        <div style="float: left">
-          <label>SVG Image:&thinsp;</label>
-          <button id="downloadSvg">Download SVG File</button>
-          <label>&emsp;</label>
-          <br />
-          <img id="svgImage" />
-        </div>
-        <div style="float: left">
-          <label>PNG Image:&thinsp;</label>
-          <button id="generatePng">Generate</button>
-          <button id="downloadPng">Download PNG File</button>
-          <br />
-          <canvas id="imageCanvas"></canvas>
-        </div>
-        <div style="float: left">
-          <label>Flowchart:&thinsp;</label>
-          <div id="flowchartContainer"></div>
-        </div>
-      </div> -->
     </div>
   </body>
 </html>

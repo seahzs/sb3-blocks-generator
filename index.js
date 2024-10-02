@@ -143,7 +143,6 @@ async function renderScratchBlocksAndFlowcharts(hatBlocks, blocks) {
   const container = document.getElementById("scratchBlocksAndFlowcharts");
   container.innerHTML = ""; // Clear previous content
   viewers = [];
-
   const renderOpts = {
     style: "scratch3",
     languages: ["en"],
@@ -164,10 +163,16 @@ async function renderScratchBlocksAndFlowcharts(hatBlocks, blocks) {
     const blockContainer = document.createElement("div");
     blockContainer.className = "block-container";
 
+    // Create a container for Scratch block buttons
+    const blockButtonsContainer = document.createElement("div");
+    blockButtonsContainer.className = "download-buttons";
+    blockContainer.appendChild(blockButtonsContainer);
+
     const viewer = scratchblocks.newView(
       scratchblocks.parse(script, renderOpts),
       renderOpts
     );
+
     await viewer.render();
 
     const svgStr = viewer.exportSVGString();
@@ -176,14 +181,6 @@ async function renderScratchBlocksAndFlowcharts(hatBlocks, blocks) {
       "data:image/svg+xml;utf8," + svgStr.replace(/[#]/g, encodeURIComponent);
     blockContainer.appendChild(svgImg);
 
-    const canvas = document.createElement("canvas");
-    blockContainer.appendChild(canvas);
-
-    // Create a container for Scratch block buttons
-    const blockButtonsContainer = document.createElement("div");
-    blockButtonsContainer.style.marginTop = "10px";
-    blockButtonsContainer.style.textAlign = "center";
-
     const downloadSvgBtn = document.createElement("button");
     downloadSvgBtn.textContent = "Download SVG";
     downloadSvgBtn.onclick = () => downloadSvg(svgStr, i);
@@ -191,51 +188,46 @@ async function renderScratchBlocksAndFlowcharts(hatBlocks, blocks) {
 
     const downloadPngBtn = document.createElement("button");
     downloadPngBtn.textContent = "Download PNG";
-    downloadPngBtn.onclick = () => downloadPng(canvas, i);
+    downloadPngBtn.onclick = () => downloadPng(viewer, i);
     blockButtonsContainer.appendChild(downloadPngBtn);
 
-    blockContainer.appendChild(blockButtonsContainer);
-
     blockFlowchartContainer.appendChild(blockContainer);
-    viewers.push({ viewer, svgImg, canvas });
+
+    viewers.push({ viewer, svgImg });
 
     // Flowchart
     const flowchartContainer = document.createElement("div");
     flowchartContainer.className = "flowchart-container";
-    flowchartContainer.id = `flowchart${i}`;
+
+    // Create a container for flowchart buttons
+    const flowchartButtonsContainer = document.createElement("div");
+    flowchartButtonsContainer.className = "download-buttons";
+    flowchartContainer.appendChild(flowchartButtonsContainer);
+
+    // Add flowchart download buttons
+    const downloadFlowchartSvgBtn = document.createElement("button");
+    downloadFlowchartSvgBtn.textContent = "Download Flowchart SVG";
+    downloadFlowchartSvgBtn.onclick = () =>
+      downloadFlowchartSvg(`flowchart${i}`, i);
+    flowchartButtonsContainer.appendChild(downloadFlowchartSvgBtn);
+
+    const downloadFlowchartPngBtn = document.createElement("button");
+    downloadFlowchartPngBtn.textContent = "Download Flowchart PNG";
+    downloadFlowchartPngBtn.onclick = () =>
+      downloadFlowchartPng(`flowchart${i}`, i);
+    flowchartButtonsContainer.appendChild(downloadFlowchartPngBtn);
+
+    // Create a div for the actual flowchart content
+    const flowchartContent = document.createElement("div");
+    flowchartContent.id = `flowchart${i}`;
+    flowchartContainer.appendChild(flowchartContent);
+
     blockFlowchartContainer.appendChild(flowchartContainer);
 
     container.appendChild(blockFlowchartContainer);
   }
 
-  await renderAllPNGs();
   renderAllFlowcharts();
-}
-
-async function renderAllPNGs() {
-  for (let i = 0; i < viewers.length; i++) {
-    await renderPNG(i);
-  }
-}
-
-async function renderPNG(index) {
-  const { viewer, svgImg, canvas } = viewers[index];
-  canvas.width = viewer.width * blockSize.value;
-  canvas.height = viewer.height * blockSize.value;
-  const context = canvas.getContext("2d");
-  context.clearRect(0, 0, canvas.width, canvas.height);
-
-  return new Promise((resolve) => {
-    svgImg.onload = () => {
-      context.drawImage(svgImg, 0, 0);
-      resolve();
-    };
-    // In case the image is already loaded
-    if (svgImg.complete) {
-      context.drawImage(svgImg, 0, 0);
-      resolve();
-    }
-  });
 }
 
 function downloadSvg(svgStr, index) {
@@ -246,17 +238,73 @@ function downloadSvg(svgStr, index) {
   URL.revokeObjectURL(url);
 }
 
-function downloadPng(canvas, index) {
-  const fileName = `${getFileNameBase()}_block${index + 1}.png`;
-  canvas.toBlob((blob) => {
-    if (blob) {
-      const url = URL.createObjectURL(blob);
-      triggerDownload(url, fileName, "image/png");
-      URL.revokeObjectURL(url);
-    } else {
-      console.error("Failed to create blob for PNG download");
-    }
-  }, "image/png");
+function downloadPng(viewer, index) {
+  const canvas = document.createElement("canvas");
+  const scale = blockSize.value;
+  canvas.width = viewer.width * scale;
+  canvas.height = viewer.height * scale;
+  const ctx = canvas.getContext("2d");
+
+  const svgString = viewer.exportSVGString();
+  const img = new Image();
+  img.onload = function () {
+    ctx.drawImage(img, 0, 0);
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        const fileName = `${getFileNameBase()}_block${index + 1}.png`;
+        triggerDownload(url, fileName, "image/png");
+        URL.revokeObjectURL(url);
+      } else {
+        console.error("Failed to create blob for PNG download");
+      }
+    }, "image/png");
+  };
+  img.src =
+    "data:image/svg+xml;base64," +
+    btoa(unescape(encodeURIComponent(svgString)));
+}
+
+function downloadFlowchartSvg(containerId, index) {
+  const svgElement = document.getElementById(containerId).querySelector("svg");
+  if (svgElement) {
+    const svgString = new XMLSerializer().serializeToString(svgElement);
+    const fileName = `${getFileNameBase()}_flowchart${index + 1}.svg`;
+    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    triggerDownload(url, fileName, "image/svg+xml");
+    URL.revokeObjectURL(url);
+  } else {
+    console.error("Flowchart SVG not found.");
+  }
+}
+
+function downloadFlowchartPng(containerId, index) {
+  const svgElement = document.getElementById(containerId).querySelector("svg");
+  if (svgElement) {
+    const canvas = document.createElement("canvas");
+    const bbox = svgElement.getBBox();
+    canvas.width = bbox.width;
+    canvas.height = bbox.height;
+    const ctx = canvas.getContext("2d");
+
+    const svgString = new XMLSerializer().serializeToString(svgElement);
+    const img = new Image();
+    img.onload = function () {
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const fileName = `${getFileNameBase()}_flowchart${index + 1}.png`;
+        triggerDownload(url, fileName, "image/png");
+        URL.revokeObjectURL(url);
+      });
+    };
+    img.src =
+      "data:image/svg+xml;base64," +
+      btoa(unescape(encodeURIComponent(svgString)));
+  } else {
+    console.error("Flowchart SVG not found.");
+  }
 }
 
 function getFileNameBase() {
@@ -1129,7 +1177,7 @@ function getBlockLabel(block, blocks) {
     case "event_whenthisspriteclicked":
       return "When this sprite is clicked";
     case "event_whenbackdropswitchesto":
-      return `When backdrop switches to "${getInputValue(
+      return `When backdrop switches to "${getFieldValue(
         block,
         "BACKDROP",
         blocks
@@ -1289,9 +1337,13 @@ function getBlockLabel(block, blocks) {
 
     // Sound blocks
     case "sound_play":
-      return `Start sound "${getFieldValue(block, "SOUND_MENU")}"`;
+      return `Start sound "${getInputValue(block, "SOUND_MENU", blocks)}"`;
     case "sound_playuntildone":
-      return `Play sound "${getFieldValue(block, "SOUND_MENU")}" until done`;
+      return `Play sound "${getInputValue(
+        block,
+        "SOUND_MENU",
+        blocks
+      )}" until done`;
     case "sound_stopallsounds":
       return "Stop all sounds";
     case "sound_changeeffectby":
@@ -1639,24 +1691,24 @@ function renderFlowchart(definition, index) {
   const flowchartContainer = document.getElementById(`flowchart${index}`);
   flowchartContainer.innerHTML = ""; // Clear previous flowchart
 
-  const downloadButtons = document.createElement("div");
-  downloadButtons.className = "flowchart-buttons";
+  // const downloadButtons = document.createElement("div");
+  // downloadButtons.className = "flowchart-buttons";
 
-  const downloadSvgButton = document.createElement("button");
-  downloadSvgButton.textContent = "Download Flowchart SVG";
-  downloadSvgButton.onclick = () => {
-    downloadFlowchartSvg(`flowchart${index}`, index);
-  };
+  // const downloadSvgButton = document.createElement("button");
+  // downloadSvgButton.textContent = "Download Flowchart SVG";
+  // downloadSvgButton.onclick = () => {
+  //   downloadFlowchartSvg(`flowchart${index}`, index);
+  // };
 
-  const downloadPngButton = document.createElement("button");
-  downloadPngButton.textContent = "Download Flowchart PNG";
-  downloadPngButton.onclick = () => {
-    downloadFlowchartPng(`flowchart${index}`, index);
-  };
+  // const downloadPngButton = document.createElement("button");
+  // downloadPngButton.textContent = "Download Flowchart PNG";
+  // downloadPngButton.onclick = () => {
+  //   downloadFlowchartPng(`flowchart${index}`, index);
+  // };
 
-  downloadButtons.appendChild(downloadSvgButton);
-  downloadButtons.appendChild(downloadPngButton);
-  flowchartContainer.appendChild(downloadButtons);
+  // downloadButtons.appendChild(downloadSvgButton);
+  // downloadButtons.appendChild(downloadPngButton);
+  // flowchartContainer.appendChild(downloadButtons);
 
   try {
     var chart = flowchart.parse(definition);
@@ -1723,46 +1775,46 @@ function renderFlowchart(definition, index) {
   }
 }
 
-function downloadFlowchartSvg(containerId, index) {
-  const svgElement = document.getElementById(containerId).querySelector("svg");
-  if (svgElement) {
-    const serializer = new XMLSerializer();
-    const svgString = serializer.serializeToString(svgElement);
-    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-    const objectURL = URL.createObjectURL(blob);
-    const fileName = `${sb3File.name.slice(0, -4)}_${spriteList.value.replace(
-      "_",
-      ""
-    )}_flowchart${index + 1}.svg`;
-    triggerDownload(objectURL, fileName, "image/svg+xml");
-  } else {
-    alert("Flowchart SVG not found.");
-  }
-}
+// function downloadFlowchartSvg(containerId, index) {
+//   const svgElement = document.getElementById(containerId).querySelector("svg");
+//   if (svgElement) {
+//     const serializer = new XMLSerializer();
+//     const svgString = serializer.serializeToString(svgElement);
+//     const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+//     const objectURL = URL.createObjectURL(blob);
+//     const fileName = `${sb3File.name.slice(0, -4)}_${spriteList.value.replace(
+//       "_",
+//       ""
+//     )}_flowchart${index + 1}.svg`;
+//     triggerDownload(objectURL, fileName, "image/svg+xml");
+//   } else {
+//     alert("Flowchart SVG not found.");
+//   }
+// }
 
-function downloadFlowchartPng(containerId, index) {
-  const svg = document.getElementById(containerId).querySelector("svg");
-  if (!svg) {
-    console.error("SVG not found");
-    return;
-  }
+// function downloadFlowchartPng(containerId, index) {
+//   const svg = document.getElementById(containerId).querySelector("svg");
+//   if (!svg) {
+//     console.error("SVG not found");
+//     return;
+//   }
 
-  const svgData = new XMLSerializer().serializeToString(svg);
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
+//   const svgData = new XMLSerializer().serializeToString(svg);
+//   const canvas = document.createElement("canvas");
+//   const ctx = canvas.getContext("2d");
 
-  const img = new Image();
-  img.onload = function () {
-    canvas.width = img.width;
-    canvas.height = img.height;
-    ctx.drawImage(img, 0, 0);
-    canvas.toBlob(function (blob) {
-      const url = URL.createObjectURL(blob);
-      const fileName = `${getFileNameBase()}_flowchart${index + 1}.png`;
-      triggerDownload(url, fileName, "image/png");
-      URL.revokeObjectURL(url);
-    });
-  };
-  img.src =
-    "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
-}
+//   const img = new Image();
+//   img.onload = function () {
+//     canvas.width = img.width;
+//     canvas.height = img.height;
+//     ctx.drawImage(img, 0, 0);
+//     canvas.toBlob(function (blob) {
+//       const url = URL.createObjectURL(blob);
+//       const fileName = `${getFileNameBase()}_flowchart${index + 1}.png`;
+//       triggerDownload(url, fileName, "image/png");
+//       URL.revokeObjectURL(url);
+//     });
+//   };
+//   img.src =
+//     "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
+// }
