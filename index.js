@@ -1,15 +1,19 @@
+// import * as JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
+
 import {
   downloadFlowchartPng,
   downloadFlowchartSvg,
   downloadPng,
   downloadSvg,
   generateScratchblocksCode,
-  handleFileUpload,
   generateTxtFileDownload,
   findHatBlocks,
 } from "./helpers.js";
 
-import { generateFlowchartDefinition } from "./flowchart-gen/main.js";
+import {
+  generateFlowchartDefinition,
+  renderFlowchart,
+} from "./flowchart-gen/main.js";
 
 // Existing variable declarations
 const spriteForm = document.getElementById("spriteForm");

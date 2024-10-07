@@ -1,4 +1,4 @@
-function traverseBlocks(
+export function traverseBlocks(
   blockId,
   blocks,
   nodes,
@@ -91,13 +91,13 @@ function traverseBlocks(
   // }
 }
 
-function isLoopNode(block) {
-  return ["control_repeat", "control_repeat_until"].includes(block.opcode);
-}
+// function isLoopNode(block) {
+//   return ["control_repeat", "control_repeat_until"].includes(block.opcode);
+// }
 
-function isIfElseNode(block) {
-  return ["control_if", "control_if_else"].includes(block.opcode);
-}
+// function isIfElseNode(block) {
+//   return ["control_if", "control_if_else"].includes(block.opcode);
+// }
 
 function countBlocksInSubstack(startBlockId, blocks) {
   let count = 0;
@@ -544,7 +544,7 @@ function findLastBlockInSubstack(startBlockId, blocks) {
   return lastBlockId;
 }
 
-function addConnection(connections, from, to, condition) {
+export function addConnection(connections, from, to, condition) {
   if (
     !connections.some(
       (conn) =>
