@@ -44,18 +44,18 @@ export function traverseBlocks(
     sequence: currentSequence,
   };
 
-  // if (block.opcode === "control_stop") {
-  //   const stopOption = block.fields.STOP_OPTION
-  //     ? block.fields.STOP_OPTION[0]
-  //     : "all";
-  //   if (stopOption === "all" || stopOption === "this script") {
-  //     console.log("should stop");
+  if (block.opcode === "control_stop") {
+    const stopOption = block.fields.STOP_OPTION
+      ? block.fields.STOP_OPTION[0]
+      : "all";
+    if (stopOption === "all" || stopOption === "this script") {
+      console.log("should stop");
 
-  //     // The flowchart should terminate at this block
-  //     // Set the node type to 'end' if not already set
-  //     return; // Stop further traversal
-  //   }
-  // }
+      // The flowchart should terminate at this block
+      // Set the node type to 'end' if not already set
+      return; // Stop further traversal
+    }
+  }
 
   if (["control_if", "control_if_else"].includes(block.opcode)) {
     handleIfBlocks(
@@ -279,103 +279,123 @@ function handleIfBlocks(
       addConnection(connections, blockId, "end", "no");
     }
   }
-
-  // Find the last block of both substacks
-  let lastBlockId1 = substackId
-    ? findLastBlockInSubstack(substackId, blocks)
-    : null;
-  let lastBlockId2 = substack2Id
-    ? findLastBlockInSubstack(substack2Id, blocks)
-    : null;
+  //////
 
   let nextTarget = block.next || exitTarget;
 
   if (nextTarget) {
-    let nextBlock = blocks[nextTarget];
-    if (nextBlock && nextBlock.opcode === "control_forever") {
-      let foreverSubstackId = nextBlock.inputs.SUBSTACK
-        ? nextBlock.inputs.SUBSTACK[1]
-        : null;
-      if (foreverSubstackId && blocks[foreverSubstackId]) {
-        nextTarget = foreverSubstackId;
-      }
-    }
-
-    if (lastBlockId1) {
-      let lastBlock1 = blocks[lastBlockId1];
-      if (isLoopBlock(lastBlock1)) {
-        addConnection(connections, lastBlockId1, nextTarget, "yes");
-      } else {
-        addConnection(connections, lastBlockId1, nextTarget);
-      }
-    }
-
-    if (lastBlockId2) {
-      let lastBlock2 = blocks[lastBlockId2];
-      if (isLoopBlock(lastBlock2)) {
-        addConnection(connections, lastBlockId2, nextTarget, "yes");
-      } else {
-        addConnection(connections, lastBlockId2, nextTarget);
-      }
-    }
-
-    if (block.opcode === "control_if")
-      addConnection(connections, blockId, nextTarget, "no");
-
-    if (block.next) {
-      let substack2Length = substack2Id
-        ? countBlocksInSubstack(substack2Id, blocks)
-        : 0;
-      traverseBlocks(
-        block.next,
-        blocks,
-        nodes,
-        connections,
-        nodeCounter,
-        exitTarget,
-        currentLevel,
-        currentSequence + 1 + substack2Length,
-        foreverStartId
-      );
-    }
-  } else if (foreverStartId) {
-    // If there's no next block but we're in a forever loop, connect back to the start
-    if (lastBlockId1) {
-      let lastBlock1 = blocks[lastBlockId1];
-      if (isLoopBlock(lastBlock1)) {
-        addConnection(connections, lastBlockId1, foreverStartId, "yes");
-      } else {
-        addConnection(connections, lastBlockId1, foreverStartId);
-      }
-    }
-    if (lastBlockId2) {
-      let lastBlock2 = blocks[lastBlockId2];
-      if (isLoopBlock(lastBlock2)) {
-        addConnection(connections, lastBlockId2, foreverStartId, "yes");
-      } else {
-        addConnection(connections, lastBlockId2, foreverStartId);
-      }
-    }
-    if (block.opcode === "control_if")
-      addConnection(connections, blockId, foreverStartId, "no");
-  } else {
-    if (lastBlockId1) {
-      if (isLoopBlock(blocks[lastBlockId1])) {
-        addConnection(connections, lastBlockId1, "end", "yes");
-      } else {
-        addConnection(connections, lastBlockId1, "end");
-      }
-    }
-    if (lastBlockId2) {
-      if (isLoopBlock(blocks[lastBlockId2])) {
-        addConnection(connections, lastBlockId2, "end", "yes");
-      } else {
-        addConnection(connections, lastBlockId2, "end");
-      }
-    }
-    if (block.opcode === "control_if")
-      addConnection(connections, blockId, "end", "no");
+    let substack2Length = substack2Id
+      ? countBlocksInSubstack(substack2Id, blocks)
+      : 0;
+    traverseBlocks(
+      nextTarget,
+      blocks,
+      nodes,
+      connections,
+      nodeCounter,
+      block.next ? exitTarget : null,
+      currentLevel,
+      currentSequence + 1 + substack2Length,
+      foreverStartId
+    );
   }
+
+  // Find the last block of both substacks
+  // let lastBlockId1 = substackId
+  //   ? findLastBlockInSubstack(substackId, blocks)
+  //   : null;
+  // let lastBlockId2 = substack2Id
+  //   ? findLastBlockInSubstack(substack2Id, blocks)
+  //   : null;
+
+  // let nextTarget = block.next || exitTarget;
+
+  // if (nextTarget) {
+  //   let nextBlock = blocks[nextTarget];
+  //   if (nextBlock && nextBlock.opcode === "control_forever") {
+  //     let foreverSubstackId = nextBlock.inputs.SUBSTACK
+  //       ? nextBlock.inputs.SUBSTACK[1]
+  //       : null;
+  //     if (foreverSubstackId && blocks[foreverSubstackId]) {
+  //       nextTarget = foreverSubstackId;
+  //     }
+  //   }
+
+  //   if (lastBlockId1) {
+  //     let lastBlock1 = blocks[lastBlockId1];
+  //     if (isLoopBlock(lastBlock1)) {
+  //       addConnection(connections, lastBlockId1, nextTarget, "yes");
+  //     } else {
+  //       addConnection(connections, lastBlockId1, nextTarget);
+  //     }
+  //   }
+
+  //   if (lastBlockId2) {
+  //     let lastBlock2 = blocks[lastBlockId2];
+  //     if (isLoopBlock(lastBlock2)) {
+  //       addConnection(connections, lastBlockId2, nextTarget, "yes");
+  //     } else {
+  //       addConnection(connections, lastBlockId2, nextTarget);
+  //     }
+  //   }
+
+  //   if (block.opcode === "control_if")
+  //     addConnection(connections, blockId, nextTarget, "no");
+
+  //   if (block.next) {
+  //     let substack2Length = substack2Id
+  //       ? countBlocksInSubstack(substack2Id, blocks)
+  //       : 0;
+  //     traverseBlocks(
+  //       block.next,
+  //       blocks,
+  //       nodes,
+  //       connections,
+  //       nodeCounter,
+  //       exitTarget,
+  //       currentLevel,
+  //       currentSequence + 1 + substack2Length,
+  //       foreverStartId
+  //     );
+  //   }
+  // } else if (foreverStartId) {
+  //   // If there's no next block but we're in a forever loop, connect back to the start
+  //   if (lastBlockId1) {
+  //     let lastBlock1 = blocks[lastBlockId1];
+  //     if (isLoopBlock(lastBlock1)) {
+  //       addConnection(connections, lastBlockId1, foreverStartId, "yes");
+  //     } else {
+  //       addConnection(connections, lastBlockId1, foreverStartId);
+  //     }
+  //   }
+  //   if (lastBlockId2) {
+  //     let lastBlock2 = blocks[lastBlockId2];
+  //     if (isLoopBlock(lastBlock2)) {
+  //       addConnection(connections, lastBlockId2, foreverStartId, "yes");
+  //     } else {
+  //       addConnection(connections, lastBlockId2, foreverStartId);
+  //     }
+  //   }
+  //   if (block.opcode === "control_if")
+  //     addConnection(connections, blockId, foreverStartId, "no");
+  // } else {
+  //   if (lastBlockId1) {
+  //     if (isLoopBlock(blocks[lastBlockId1])) {
+  //       addConnection(connections, lastBlockId1, "end", "yes");
+  //     } else {
+  //       addConnection(connections, lastBlockId1, "end");
+  //     }
+  //   }
+  //   if (lastBlockId2) {
+  //     if (isLoopBlock(blocks[lastBlockId2])) {
+  //       addConnection(connections, lastBlockId2, "end", "yes");
+  //     } else {
+  //       addConnection(connections, lastBlockId2, "end");
+  //     }
+  //   }
+  //   if (block.opcode === "control_if")
+  //     addConnection(connections, blockId, "end", "no");
+  // }
 }
 
 function isLoopBlock(block) {
