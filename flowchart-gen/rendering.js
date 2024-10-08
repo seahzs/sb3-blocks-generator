@@ -193,4 +193,3 @@ function centerLine(line, maxLineLength) {
 
   return leftPadding + line + rightPadding;
 }
-

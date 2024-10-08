@@ -211,7 +211,6 @@ async function renderScratchBlocksAndFlowcharts(hatBlocks, blocks) {
 
     container.appendChild(blockFlowchartContainer);
   }
-  // renderAllFlowcharts();
 
   flowchartDefinitions.forEach((definition, index) => {
     renderFlowchart(definition, index);

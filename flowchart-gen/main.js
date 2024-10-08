@@ -40,7 +40,7 @@ export function generateFlowchartDefinition(hatKey, blocks) {
     id: "node" + nodeCounter.value++,
     label: "End",
     type: "terminator",
-    level: 0,
+    level: -1,
     sequence: Object.keys(nodes).length,
   };
 
