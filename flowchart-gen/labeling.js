@@ -1,62 +1,7 @@
-function wrapLabel(label, maxLineLength, nodeType) {
-  // First, check if the entire label fits within maxLineLength
-  if (label.length <= maxLineLength) {
-    // If it fits, center it
-    return centerLine(label, maxLineLength);
-  } else {
-    // If it doesn't fit, break it into lines without padding
-    return breakIntoLines(label, maxLineLength).join("\n");
-  }
-}
-
-function breakIntoLines(label, maxLineLength) {
-  const words = label.split(" ");
-  const lines = [];
-  let currentLine = "";
-
-  for (const word of words) {
-    if (
-      (currentLine + (currentLine ? " " : "") + word).length <= maxLineLength
-    ) {
-      currentLine += (currentLine ? " " : "") + word;
-    } else {
-      if (currentLine) {
-        lines.push(currentLine);
-      }
-      if (word.length > maxLineLength) {
-        // Break long words
-        let remainingWord = word;
-        while (remainingWord.length > maxLineLength) {
-          lines.push(remainingWord.slice(0, maxLineLength));
-          remainingWord = remainingWord.slice(maxLineLength);
-        }
-        currentLine = remainingWord;
-      } else {
-        currentLine = word;
-      }
-    }
-  }
-  if (currentLine) {
-    lines.push(currentLine);
-  }
-  return lines;
-}
-
-function centerLine(line, maxLineLength) {
-  const totalPadding = maxLineLength - line.length;
-  const leftPad = Math.floor(totalPadding / 2);
-  const rightPad = totalPadding - leftPad;
-
-  // Use Braille Pattern Blank for both left and right padding
-  const brailleBlank = "\u2800"; // Braille Pattern Blank
-  const leftPadding = brailleBlank.repeat(leftPad);
-  const rightPadding = brailleBlank.repeat(rightPad);
-
-  return leftPadding + line + rightPadding;
-}
+import { HAT_BLOCKS } from "../helpers.js";
 
 // Helper functions
-function getBlockLabel(block, blocks) {
+export function getBlockLabel(block, blocks) {
   switch (block.opcode) {
     // Event blocks (HAT_BLOCKS)
     case "event_whenflagclicked":
@@ -481,7 +426,7 @@ function mapMenuValue(menuName, value) {
   return mappings[value] || value;
 }
 
-function getBlockType(block) {
+export function getBlockType(block) {
   if (HAT_BLOCKS.includes(block.opcode) || block.opcode === "control_stop") {
     return "terminator";
   } else if (

@@ -1,3 +1,5 @@
+import { getBlockLabel, getBlockType } from "./labeling.js";
+
 export function traverseBlocks(
   blockId,
   blocks,
@@ -42,6 +44,19 @@ export function traverseBlocks(
     sequence: currentSequence,
   };
 
+  // if (block.opcode === "control_stop") {
+  //   const stopOption = block.fields.STOP_OPTION
+  //     ? block.fields.STOP_OPTION[0]
+  //     : "all";
+  //   if (stopOption === "all" || stopOption === "this script") {
+  //     console.log("should stop");
+
+  //     // The flowchart should terminate at this block
+  //     // Set the node type to 'end' if not already set
+  //     return; // Stop further traversal
+  //   }
+  // }
+
   if (["control_if", "control_if_else"].includes(block.opcode)) {
     handleIfBlocks(
       blockId,
@@ -84,20 +99,7 @@ export function traverseBlocks(
       foreverStartId
     );
   }
-
-  // // Check for program termination
-  // if (!block.next && !exitTarget && !foreverStartId) {
-  //   addConnection(connections, blockId, "end");
-  // }
 }
-
-// function isLoopNode(block) {
-//   return ["control_repeat", "control_repeat_until"].includes(block.opcode);
-// }
-
-// function isIfElseNode(block) {
-//   return ["control_if", "control_if_else"].includes(block.opcode);
-// }
 
 function countBlocksInSubstack(startBlockId, blocks) {
   let count = 0;
@@ -159,20 +161,8 @@ function handleForeverBlock(
       currentSequence,
       substackId
     );
-    // let lastBlockId = findLastBlockInSubstack(substackId, blocks);
-    // addConnection(connections, lastBlockId, substackId);
-    // connectLastBlocksToForeverStart(
-    //   substackId,
-    //   blocks,
-    //   connections,
-    //   substackId
-    // );
   }
   return;
-  // else {
-  //   // Empty forever loop, connect back to itself
-  //   addConnection(connections, blockId, blockId);
-  // }
 }
 
 function handleIfBlocks(
