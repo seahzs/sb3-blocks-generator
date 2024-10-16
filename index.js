@@ -1,13 +1,3 @@
-// import {
-//   generateScratchblocksCode,
-//   findHatBlocks,
-//   getFileNameBase,
-//   getFileName,
-//   triggerDownload,
-// } from "./helpers.js";
-
-// import { generateFlowchartDefinition, renderFlowchart } from "./main.js";
-
 // Existing variable declarations
 const spriteForm = document.getElementById("spriteForm");
 const spriteList = document.getElementById("spriteList");
@@ -376,9 +366,6 @@ function triggerDownload(url, fileName, mimeType) {
 
 // Flowchart generation main functions
 
-// import { traverseBlocks, addConnection } from "./traversal.js";
-// import { buildFlowchartDefinition } from "./rendering.js";
-
 function generateFlowchartDefinition(hatKey, blocks) {
   let nodes = {};
   let connections = [];
@@ -497,8 +484,6 @@ function renderFlowchart(definition, index) {
 ////////////////////////////////
 
 // Traversal functions
-
-// import { getBlockLabel, getBlockType } from "./labeling.js";
 
 function traverseBlocks(
   blockId,
@@ -781,8 +766,6 @@ function handleIfBlocks(
   }
   //////
 
-  // let nextTarget = block.next || exitTarget;
-
   if (block.next) {
     let substack2Length = substack2Id
       ? countBlocksInSubstack(substack2Id, blocks)
@@ -852,9 +835,6 @@ function handleLoopBlocks(
         foreverStartId
       );
     }
-
-    // let lastBlockId = findLastBlockInSubstack(substackId, blocks);
-    // addConnection(connections, lastBlockId, blockId);
   } else {
     addConnection(connections, blockId, blockId, "no");
   }
